@@ -82,7 +82,7 @@ window.Mapa = (() => {
       const top = t.to.reduce((a, b) => (b.price > a.price ? b : a), t.to[0]);
       if (!top) continue;
       const lines = t.to.map((x) => `${x.name}: ${usd.format(x.price)}`).join(' · ');
-      L.marker([t.lat, t.lon], { pane: 'vehicles', icon: L.divIcon({ className: '', html: `<span class="toll">${usd.format(top.price)}</span>`, iconSize: [0, 0] }) })
+      L.marker([t.lat, t.lon], { pane: 'vehicles', icon: L.divIcon({ className: '', html: `<span class="toll${top.price < 5 ? ' lane' : ''}">${usd.format(top.price)}</span>`, iconSize: [0, 0] }) })
         .bindTooltip(tip(t.program, `${t.name} · ${lines}`)).addTo(layers.roads);
     }
     const el = $('mRoads'); if (el) el.textContent = fmt.format(n);
@@ -310,6 +310,8 @@ window.Mapa = (() => {
     const shared = new Shared({ pane: 'bikes' }), paneRenderer = map._getPaneRenderer.bind(map);
     map._getPaneRenderer = (name) => (name in RANK ? shared : paneRenderer(name));
     layers = { metro: L.layerGroup().addTo(map), trains: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), bikes: L.layerGroup().addTo(map) };
+    // Bridge tolls always show; express-lane prices (dozens per freeway) only from zoom 13, where they stop piling up.
+    const far = () => map.getContainer().classList.toggle('far', map.getZoom() < 13); map.on('zoomend', far); far();
     if (CITY.id === 'bay') layers.roads = L.layerGroup();   // off by default: toggle Roads to show closures and tolls
     alerts = L.layerGroup().addTo(map); focusLayer = L.layerGroup().addTo(map); savedLayer = L.layerGroup().addTo(map);
     // Extra layers (planes, ships, quakes, air, cars) get their own toggles, before the screen mode button.
