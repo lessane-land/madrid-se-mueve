@@ -242,7 +242,7 @@ window.Pulso = (() => {
   function when() {
     const ok = state.ok.trains || state.ok.bikes;
     document.getElementById('pulsoLive').classList.toggle('on', !!ok);
-    const d = new Date().toLocaleString(CITY.locale, { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: CITY.tz });
+    const d = new Date().toLocaleString(CITY.locale, { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: CITY.id === 'bay', timeZone: CITY.tz });
     document.getElementById('pulsoWhen').textContent = (ok ? L('En vivo · ', 'Live · ') : L('Sin conexión · ', 'Offline · ')) + d;
   }
 

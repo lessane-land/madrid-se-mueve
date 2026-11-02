@@ -35,7 +35,7 @@
       <a href="#lineas" data-en="Lines">Líneas</a>
     </nav>
     <div class="views meta">
-      <a id="otherCity" href="https://bayarea.lessane.es/">Bay Area</a>
+      <nav class="cities" id="cities" aria-label="Ciudad" data-en-aria="City"><a data-city="madrid" href="https://madrid.lessane.es/">Madrid</a><a data-city="bay" href="https://bayarea.lessane.es/">Bay Area</a></nav>
       <button type="button" id="langBtn" aria-label="Read in English" lang="en">EN</button>
     </div>
   </div>
@@ -187,7 +187,7 @@
     let [v, arg] = location.hash.slice(1).split('-');
     if (!VIEWS.includes(v)) v = 'pulso';
     for (const id of VIEWS) document.getElementById(id).hidden = id !== v;
-    document.querySelectorAll('.views a').forEach((a) => { if (a.getAttribute('href') === '#' + v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    document.querySelectorAll('.views:not(.meta) a').forEach((a) => { if (a.getAttribute('href') === '#' + v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     if (!started[v]) { started[v] = true; START[v].start(); }
     START[v].shown?.(arg);
   }
@@ -212,7 +212,10 @@
   }
   for (const el of document.querySelectorAll('[data-ph]')) el.placeholder = fill(el.dataset.ph);
   for (const el of document.querySelectorAll('[data-only]')) if (el.dataset.only !== CITY.id) el.remove();
-  const other = document.getElementById('otherCity'); other.href = CITY.other.url + (CITY.lang === 'en' ? '?lang=en' : '?lang=es'); other.textContent = CITY.other.name;
+  for (const a of document.querySelectorAll('#cities a')) {
+    if (a.dataset.city === CITY.id) { a.setAttribute('aria-current', 'page'); a.removeAttribute('href'); }
+    else a.href += '?lang=' + CITY.lang;
+  }
   const lb = document.getElementById('langBtn'), to = CITY.lang === 'en' ? 'es' : 'en';
   lb.textContent = to.toUpperCase(); lb.lang = to; lb.setAttribute('aria-label', to === 'en' ? 'Read in English' : 'Leer en español');
   lb.onclick = () => CITY.setLang(to);
