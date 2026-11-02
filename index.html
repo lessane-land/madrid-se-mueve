@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Madrid se mueve</title>
+<meta name="description" content="Metro, Cercanías, buses de EMT y BiciMAD en vivo sobre el mapa de Madrid.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+@font-face { font-family: 'Unbounded'; src: url(fonts/Unbounded.woff2) format('woff2'); font-weight: 200 900; font-display: swap; }
+@font-face { font-family: 'Azeret Mono'; src: url(fonts/AzeretMono.woff2) format('woff2'); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: 'Instrument Sans'; src: url(fonts/InstrumentSans.woff2) format('woff2'); font-weight: 400 700; font-stretch: 75% 100%; font-display: swap; }
+:root {
+  /* Madrid hoy family: dark only, the map is the page, compartments float on it. Status colours only for status. */
+  --ink: #0A0A0A; --panel: #141413; --line: #2A2A28; --paper: #F5F5F0; --mute: #8A8A82;
+  --hielo: #8FD3FF; --verde: #5BE38A; --ambar: #FFB547; --rojo: #FF5A5F;
+  --shout: 'Unbounded', 'Arial Black', system-ui, sans-serif;
+  --count: 'Azeret Mono', ui-monospace, Menlo, monospace;
+  --talk: 'Instrument Sans', system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--ink); color: var(--paper); font-family: var(--talk); font-size: 15px; }
+#map { position: absolute; inset: 0; background: var(--ink); }
+.leaflet-container { background: var(--ink); font-family: var(--talk); }
+.dark-tiles { filter: invert(1) hue-rotate(180deg) grayscale(.85) brightness(.62) contrast(1.15); }
+.leaflet-control-attribution { background: rgba(10,10,10,.7) !important; color: var(--mute) !important; font-size: 10px; }
+.leaflet-control-attribution a { color: var(--mute) !important; }
+.leaflet-control-zoom a { background: var(--panel) !important; color: var(--paper) !important; border-color: var(--line) !important; }
+.top { position: absolute; z-index: 1000; left: 12px; right: 12px; top: max(12px, env(safe-area-inset-top)); display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; pointer-events: none; }
+.top > * { pointer-events: auto; }
+.card { background: rgba(20,20,19,.94); border: 1.5px solid var(--line); border-radius: 16px; padding: 12px 14px; backdrop-filter: blur(6px); }
+.brand h1 { font-family: var(--shout); font-weight: 900; font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+.brand p { margin: 4px 0 0; font-size: 14px; max-width: 46ch; }
+.brand p b { font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; color: var(--paper); background: rgba(20,20,19,.94); border: 1.5px solid var(--line); border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+.chip .n { font-family: var(--count); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chip .k { color: var(--mute); }
+.chip[aria-pressed="false"] { opacity: .45; }
+.chip:focus-visible { outline: 2px solid var(--hielo); outline-offset: 2px; }
+.chip i { width: 10px; height: 10px; border-radius: 50%; }
+.status { position: absolute; z-index: 1000; left: 12px; bottom: max(26px, env(safe-area-inset-bottom)); width: min(380px, calc(100% - 24px)); max-height: 38vh; overflow: auto; }
+.status h2 { font-family: var(--shout); font-weight: 700; font-size: 13px; margin: 0 0 8px; letter-spacing: .02em; }
+.st { display: grid; grid-template-columns: auto 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.35; }
+.st:first-of-type { border-top: 0; }
+.pill { font-family: var(--count); font-weight: 600; font-size: 12px; padding: 2px 7px; border-radius: 6px; color: var(--ink); align-self: start; }
+.hint { font-size: 12px; color: var(--mute); margin-top: 8px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--mute); }
+.live .dot { background: var(--verde); }
+.clock { font-family: var(--count); font-size: 12px; color: var(--mute); display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.tr { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--ink); box-shadow: 0 0 0 1.5px var(--paper); }
+.bus { font-family: var(--count); font-weight: 700; font-size: 11px; color: var(--ink); background: var(--hielo); border-radius: 6px; padding: 1px 5px; border: 1.5px solid var(--ink); white-space: nowrap; transform: translate(-50%, -50%); display: inline-block; }
+.leaflet-div-icon { background: none; border: 0; }
+.leaflet-tooltip { background: var(--ink); color: var(--paper); border: 1.5px solid var(--line); border-radius: 10px; font-family: var(--talk); font-size: 13px; box-shadow: none; padding: 6px 9px; }
+.leaflet-tooltip::before { display: none; }
+.leaflet-tooltip .t { color: var(--mute); font-family: var(--count); font-size: 11px; }
+@media (max-width: 600px) { .brand p { font-size: 13px; } .status { max-height: 30vh; } }
+</style>
+</head>
+<body>
+<div id="map" role="application" aria-label="Mapa de Madrid con Metro, Cercanías, buses y BiciMAD en vivo"></div>
+
+<div class="top">
+  <div class="card brand">
+    <h1>Madrid se mueve</h1>
+    <p id="verdict">Cargando Metro, trenes, buses y bicis.</p>
+    <div class="clock" id="clock"><span class="dot"></span><span id="when">conectando</span></div>
+  </div>
+  <div class="chips" role="group" aria-label="Capas">
+    <button class="chip" data-layer="metro" aria-pressed="true"><i style="background: #2DBEF0"></i><span class="k">Metro</span><span class="n" id="nMetro">0</span></button>
+    <button class="chip" data-layer="trains" aria-pressed="true"><i style="background: var(--paper)"></i><span class="k">Trenes</span><span class="n" id="nTrains">0</span></button>
+    <button class="chip" data-layer="buses" aria-pressed="true"><i style="background: var(--hielo); border-radius: 3px"></i><span class="k">Buses</span><span class="n" id="nBuses">0</span></button>
+    <button class="chip" data-layer="bikes" aria-pressed="true"><i style="background: var(--verde)"></i><span class="k">Bicis libres</span><span class="n" id="nBikes">0</span></button>
+  </div>
+</div>
+
+<div class="card status" id="statusCard">
+  <h2>Ahora mismo</h2>
+  <div id="statusList"></div>
+  <div class="hint" id="busHint">Acércate a una calle para ver los buses que llegan a sus paradas.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const SUPA = 'https://kdiawvzargufvoilfxmb.supabase.co';
+const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkaWF3dnphcmd1ZnZvaWxmeG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NjE1ODIsImV4cCI6MjEwOTAzNzU4Mn0.sR6yDd1SDJ86lTG0rYiGSJD4fi1XVOpabB-_kHW6uXw';
+const GRAPH = 'https://raw.githubusercontent.com/lessane-land/estado-madrid/main/graph-app.json';
+const GBFS = 'https://madrid.publicbikesystem.net/customer/gbfs/v2/en/';
+const VIVO = SUPA + '/functions/v1/vivo';
+const C = { verde: '#5BE38A', ambar: '#FFB547', rojo: '#FF5A5F', hielo: '#8FD3FF', paper: '#F5F5F0', mute: '#8A8A82', ink: '#0A0A0A' };
+const fmt = new Intl.NumberFormat('es');
+const auth = { apikey: ANON, Authorization: 'Bearer ' + ANON };
+const $ = (id) => document.getElementById(id);
+
+const map = L.map('map', { preferCanvas: true, zoomControl: false, minZoom: 9, maxZoom: 19, attributionControl: true }).setView([40.4168, -3.7038], 12);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, className: 'dark-tiles',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Datos: CRTM, Renfe, EMT, BiciMAD',
+}).addTo(map);
+map.createPane('lines').style.zIndex = 410;
+map.createPane('alerts').style.zIndex = 420;
+map.createPane('bikes').style.zIndex = 430;
+map.createPane('vehicles').style.zIndex = 650;
+
+const layers = { metro: L.layerGroup().addTo(map), trains: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), bikes: L.layerGroup().addTo(map) };
+const alerts = L.layerGroup().addTo(map);
+document.querySelectorAll('.chip[data-layer]').forEach((b) => b.addEventListener('click', () => {
+  const on = b.getAttribute('aria-pressed') !== 'true';
+  b.setAttribute('aria-pressed', on);
+  const g = layers[b.dataset.layer];
+  if (on) g.addTo(map); else map.removeLayer(g);
+  if (b.dataset.layer === 'metro') { if (on) alerts.addTo(map); else map.removeLayer(alerts); }
+  if (b.dataset.layer === 'buses' && on) loadBuses();
+}));
+
+function decode(str) {
+  let i = 0, lat = 0, lon = 0; const out = [];
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let b, shift = 0, res = 0;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 31) << shift; shift += 5; } while (b >= 32);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k === 0) lat += d; else lon += d;
+    }
+    out.push([lat / 1e5, lon / 1e5]);
+  }
+  return out;
+}
+const norm = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const tip = (title, body) => { const d = document.createElement('div'); const a = document.createElement('div'); a.className = 't'; a.textContent = title; const b = document.createElement('div'); b.textContent = body; d.append(a, b); return d; };
+
+let graph = null, stops = new Map(), lines = new Map(), emtStops = [];
+async function loadGraph() {
+  graph = await (await fetch(GRAPH)).json();
+  for (const s of graph.stops) stops.set(s.i, s);
+  emtStops = graph.stops.filter((s) => s.m === 'emt');
+  const rail = graph.lines.filter((l) => ['metro', 'metro_ligero', 'cercanias'].includes(l.m));
+  rail.sort((a, b) => (a.m === 'cercanias') - (b.m === 'cercanias'));
+  for (const l of rail) {
+    lines.set(l.i, l);
+    const path = l.sh ? decode(l.sh) : l.s.map((id) => stops.get(id)).filter(Boolean).map((s) => [s.la, s.lo]);
+    const color = '#' + (l.c || '8A8A82');
+    const cer = l.m === 'cercanias';
+    L.polyline(path, { pane: 'lines', color, weight: cer ? 2.5 : 4, opacity: cer ? .75 : .95, dashArray: cer ? '1 6' : null, lineCap: 'round' })
+      .bindTooltip(tip(cer ? 'Cercanías' : l.m === 'metro' ? 'Metro' : 'Metro Ligero', `${l.b} · ${l.n}`), { sticky: true })
+      .addTo(cer ? layers.trains : layers.metro);
+  }
+  const railStops = graph.stops.filter((s) => s.m === 'metro' || s.m === 'metro_ligero');
+  for (const s of railStops) {
+    L.circleMarker([s.la, s.lo], { pane: 'lines', radius: 3, color: C.ink, weight: 1.5, fillColor: C.paper, fillOpacity: 1 })
+      .bindTooltip(tip(s.l.map((x) => x.split(':')[1]).join(' '), s.n)).addTo(layers.metro);
+  }
+  $('nMetro').textContent = fmt.format(railStops.length);
+}
+
+// Status row: the same one Madrid hoy reads.
+let statusRows = [];
+async function loadStatus() {
+  const r = await fetch(`${SUPA}/rest/v1/estado?id=eq.1&select=generated,levels,incidents`, { headers: auth });
+  const [row] = await r.json();
+  const now = Date.now();
+  const inc = (row?.incidents ?? []).filter((i) => ['metro', 'metro_ligero', 'cercanias'].includes(i.mode) && !i.upcoming && !(i.until && Date.parse(i.until) < now));
+  alerts.clearLayers();
+  statusRows = [];
+  for (const i of inc) {
+    const col = i.severity === 'rojo' ? C.rojo : C.ambar;
+    for (const b of i.lines ?? []) {
+      const l = lines.get(`${i.mode}:${b}`) || [...lines.values()].find((x) => x.m === i.mode && x.b.startsWith(b));
+      if (!l) continue;
+      let pts = null;
+      if (i.scope?.from && i.scope?.to) {
+        const seq = l.s.map((id) => stops.get(id)).filter(Boolean);
+        const a = seq.findIndex((s) => norm(s.n).includes(norm(i.scope.from))), z = seq.findIndex((s) => norm(s.n).includes(norm(i.scope.to)));
+        if (a >= 0 && z >= 0) pts = seq.slice(Math.min(a, z), Math.max(a, z) + 1).map((s) => [s.la, s.lo]);
+      }
+      if (!pts) pts = l.sh ? decode(l.sh) : l.s.map((id) => stops.get(id)).filter(Boolean).map((s) => [s.la, s.lo]);
+      L.polyline(pts, { pane: 'alerts', color: col, weight: 9, opacity: .35, lineCap: 'round' }).addTo(alerts);
+      L.polyline(pts, { pane: 'alerts', color: col, weight: 3, opacity: 1, dashArray: '6 6' })
+        .bindTooltip(tip(`${b} · ${i.severity === 'rojo' ? 'cortada' : 'con problemas'}`, i.title || i.text || ''), { sticky: true }).addTo(alerts);
+    }
+    statusRows.push({ col, lines: (i.lines ?? []).join(' '), text: String(i.title || i.text || '').replace(/^#Mad\w*\s*/i, '') });
+  }
+  renderStatus();
+}
+function renderStatus() {
+  const list = $('statusList'); list.replaceChildren();
+  if (!statusRows.length) {
+    const d = document.createElement('div'); d.className = 'st'; const p = document.createElement('span'); p.className = 'pill'; p.style.background = C.verde; p.textContent = 'OK';
+    const t = document.createElement('span'); t.textContent = 'Metro, Metro Ligero y Cercanías sin avisos.'; d.append(p, t); list.append(d);
+  }
+  for (const s of statusRows.slice(0, 8)) {
+    const d = document.createElement('div'); d.className = 'st';
+    const p = document.createElement('span'); p.className = 'pill'; p.style.background = s.col; p.textContent = s.lines || 'Aviso';
+    const t = document.createElement('span'); t.textContent = s.text.length > 160 ? s.text.slice(0, 157) + '...' : s.text;
+    d.append(p, t); list.append(d);
+  }
+  verdict();
+}
+
+// BiciMAD from the official GBFS feed. Small at city scale, sized by bikes up close.
+const bikeR = (n) => { const z = map.getZoom(); return z < 13 ? 2 : z < 15 ? 3 + Math.min(2, n / 8) : 4 + Math.min(5, n / 4); };
+map.on('zoomend', () => layers.bikes.eachLayer((m) => m.setRadius(bikeR(m.options.bikes ?? 0))));
+let bikeInfo = null, bikesFree = 0;
+async function loadBikes() {
+  if (!bikeInfo) {
+    const info = await (await fetch(GBFS + 'station_information')).json();
+    bikeInfo = new Map(info.data.stations.map((s) => [s.station_id, s]));
+  }
+  const st = await (await fetch(GBFS + 'station_status')).json();
+  layers.bikes.clearLayers(); bikesFree = 0;
+  for (const s of st.data.stations) {
+    const i = bikeInfo.get(s.station_id); if (!i) continue;
+    const n = s.num_bikes_available, docks = s.num_docks_available, ok = s.is_renting && s.status === 'IN_SERVICE';
+    bikesFree += ok ? n : 0;
+    const col = !ok ? C.mute : n === 0 ? C.rojo : n < 4 ? C.ambar : C.verde;
+    L.circleMarker([i.lat, i.lon], { pane: 'bikes', radius: bikeR(n), color: C.ink, weight: 1, fillColor: col, fillOpacity: .9, bikes: n })
+      .bindTooltip(tip('BiciMAD', `${i.name.replace(/^\d+\s*-\s*/, '')}: ${n} bicis, ${docks} anclajes libres`)).addTo(layers.bikes);
+  }
+  $('nBikes').textContent = fmt.format(bikesFree);
+  verdict();
+}
+
+// Cercanías trains, moving.
+const trainMarks = new Map(); let trainsOk = false;
+async function loadTrains() {
+  const r = await fetch(VIVO + '?what=trains', { headers: auth });
+  if (!r.ok) throw new Error('vivo ' + r.status);
+  const d = await r.json(); trainsOk = true;
+  const seen = new Set();
+  for (const t of d.trains) {
+    seen.add(t.id);
+    const l = lines.get('cercanias:' + t.line) || lines.get('cercanias:' + t.line.replace(/[ab]$/, ''));
+    const color = '#' + (l?.c || 'F5F5F0');
+    let m = trainMarks.get(t.id);
+    const label = tip(`Cercanías ${t.line}`, `Tren ${t.id}${t.status === 'STOPPED_AT' ? ', parado en estación' : ', en marcha'}`);
+    if (!m) {
+      m = L.marker([t.lat, t.lon], { pane: 'vehicles', icon: L.divIcon({ className: '', html: `<div class="tr" style="background:${color}"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] }) })
+        .bindTooltip(label).addTo(layers.trains);
+      trainMarks.set(t.id, m);
+    } else { m.setTooltipContent(label); glide(m, [t.lat, t.lon]); }
+  }
+  for (const [id, m] of trainMarks) if (!seen.has(id)) { layers.trains.removeLayer(m); trainMarks.delete(id); }
+  $('nTrains').textContent = fmt.format(trainMarks.size);
+}
+function glide(m, to) {
+  const from = m.getLatLng(), t0 = performance.now(), dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 3000;
+  const step = (t) => { const k = dur ? Math.min(1, (t - t0) / dur) : 1; m.setLatLng([from.lat + (to[0] - from.lat) * k, from.lng + (to[1] - from.lng) * k]); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+
+// EMT buses near the stops on screen, from zoom 16.
+const BUS_ZOOM = 16; let busTimer = null;
+async function loadBuses() {
+  layers.buses.clearLayers();
+  if (map.getZoom() < BUS_ZOOM || !map.hasLayer(layers.buses)) { $('nBuses').textContent = '0'; $('busHint').hidden = false; return; }
+  $('busHint').hidden = true;
+  const b = map.getBounds(), c = map.getCenter();
+  const near = emtStops.filter((s) => b.contains([s.la, s.lo]))
+    .sort((p, q) => map.distance(c, [p.la, p.lo]) - map.distance(c, [q.la, q.lo])).slice(0, 8);
+  for (const s of near) L.circleMarker([s.la, s.lo], { pane: 'bikes', radius: 3, color: C.hielo, weight: 1.5, fillColor: C.ink, fillOpacity: 1 }).bindTooltip(tip('Parada EMT ' + s.i.split(':')[1], s.n)).addTo(layers.buses);
+  if (!near.length) { $('nBuses').textContent = '0'; return; }
+  try {
+    const r = await fetch(VIVO + '?what=buses&stops=' + near.map((s) => s.i.split(':')[1]).join(','), { headers: auth });
+    if (!r.ok) throw new Error('vivo');
+    const d = await r.json();
+    for (const v of d.buses) {
+      const stop = stops.get('emt:' + v.stop);
+      const eta = v.secs == null ? 'sin estimación' : v.secs < 60 ? 'llegando' : `en ${Math.round(v.secs / 60)} min`;
+      L.marker([v.lat, v.lon], { pane: 'vehicles', icon: L.divIcon({ className: '', html: `<span class="bus">${v.line.replace(/[^A-Za-z0-9]/g, '')}</span>`, iconSize: [0, 0] }) })
+        .bindTooltip(tip(`Línea ${v.line} hacia ${v.dest}`, `Llega a ${stop?.n ?? 'la parada ' + v.stop} ${eta}`)).addTo(layers.buses);
+    }
+    $('nBuses').textContent = fmt.format(d.buses.length);
+  } catch { $('nBuses').textContent = '-'; }
+}
+map.on('moveend', () => { clearTimeout(busTimer); busTimer = setTimeout(loadBuses, 400); });
+
+function verdict() {
+  const v = $('verdict'); v.replaceChildren();
+  const b = document.createElement('b');
+  const cut = statusRows.filter((s) => s.col === C.rojo).map((s) => s.lines).filter(Boolean);
+  b.textContent = cut.length ? `Cortes en ${[...new Set(cut.join(' ').split(' '))].join(', ')}.` : statusRows.length ? 'Metro y trenes con algún aviso.' : 'Metro y trenes sin avisos.';
+  v.append(b, document.createTextNode(` ${fmt.format(trainMarks.size)} trenes de Cercanías en marcha y ${fmt.format(bikesFree)} bicis libres.`));
+}
+function tick(ok) {
+  $('clock').classList.toggle('live', ok);
+  $('when').textContent = (ok ? 'en vivo · ' : 'sin conexión · ') + new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+}
+
+const safe = (f) => f().then(() => true).catch(() => false);
+(async () => {
+  await safe(loadGraph);
+  const ok = await Promise.all([safe(loadStatus), safe(loadBikes), safe(loadTrains)]);
+  tick(ok.some(Boolean)); verdict();
+  setInterval(async () => { tick(await safe(loadTrains)); verdict(); }, 15000);
+  setInterval(() => safe(loadBikes), 60000);
+  setInterval(() => safe(loadStatus), 120000);
+  setInterval(() => { if (map.getZoom() >= BUS_ZOOM) loadBuses(); }, 25000);
+})();
+</script>
+</body>
+</html>
