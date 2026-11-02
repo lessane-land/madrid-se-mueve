@@ -26,7 +26,7 @@ Edge Function `vivo?city=bay&what=vehicles|alerts|roads` (511: vehicles and BART
 No Historia and no 30-day episodes for the Bay.
 
 `js/extras.js` adds what moves around the transport: planes over both cities (Edge Function `vivo?what=planes`), ships
-(`vivo?city=bay&what=ships`, aisstream.io) and earthquakes (USGS feed) in the Bay, the ISS when it passes within 1,500 km,
+(`vivo?city=bay&what=ships`, aisstream.io) earthquakes (USGS feed) and the tide (NOAA station 9414290, from the browser) in the Bay, the ISS when it passes within 1,500 km,
 and Madrid's air (NO2 per station, ciudadesabiertas.madrid.es, stations in `data/aire-estaciones.json`) and car traffic
 (informo.madrid.es pm.xml, UTM 30N). Green things are the stars; planes, ships and cars are drawn faint and warm.
 Pulso's big number cycles every 9 s through `Extras.heroes()`: bikes, trains, buses (Bay), the air (Madrid).

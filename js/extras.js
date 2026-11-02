@@ -101,9 +101,53 @@ window.Extras = (() => {
     X.traffic = out; changed('traffic');
   }
 
+  // The tide at the Golden Gate, NOAA station 9414290 (San Francisco): predicted highs and lows plus the latest
+  // reading. NOAA sends CORS headers and needs no key, so this goes straight from the browser.
+  const NOAA = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?station=9414290&datum=MLLW&units=metric&time_zone=gmt&format=json&application=madrid_se_mueve';
+  const utc = (s) => Date.parse(s.replace(' ', 'T') + 'Z');
+  async function tide() {
+    if (!BAY) return;
+    const day = new Date(Date.now() - 864e5).toISOString().slice(0, 10).replace(/-/g, '');
+    const [h, o] = await Promise.all([
+      fetch(`${NOAA}&product=predictions&interval=hilo&begin_date=${day}&range=72`).then((r) => r.json()),
+      fetch(`${NOAA}&product=water_level&date=latest`).then((r) => r.json()).catch(() => null),
+    ]);
+    const ext = (h.predictions ?? []).map((p) => ({ t: utc(p.t), v: +p.v, high: p.type === 'H' })).filter((x) => Number.isFinite(x.v));
+    if (ext.length < 3) return;
+    const ob = o?.data?.[0];
+    X.tide = { ext, obs: ob && Number.isFinite(+ob.v) ? { t: utc(ob.t), v: +ob.v } : null, at: Date.now() };
+    changed('tide');
+  }
+  // Between two predicted extremes the water follows a half cosine: smooth, and good to a few centimetres.
+  function predicted(t) {
+    const e = X.tide.ext, i = e.findIndex((x) => x.t > t);
+    if (i < 1) return null;
+    const a = e[i - 1], b = e[i], k = (t - a.t) / (b.t - a.t);
+    return { v: a.v + (b.v - a.v) * (1 - Math.cos(Math.PI * k)) / 2, rate: (b.v - a.v) * Math.PI / 2 * Math.sin(Math.PI * k) / ((b.t - a.t) / 3.6e6), next: b };
+  }
+  // {m: metres above MLLW, level 0..1 in this window's range, rate m/h (+ rising), flow 0..1, next extreme}
+  function tideNow(t = Date.now()) {
+    if (!X.tide) return null;
+    const p = predicted(t); if (!p) return null;
+    // The real water runs a little above or below the prediction (wind, pressure): carry the measured offset.
+    const o = X.tide.obs, po = o && t - o.t < 3 * 3.6e6 ? predicted(o.t) : null;
+    const m = p.v + (po ? o.v - po.v : 0);
+    const vs = X.tide.ext.map((x) => x.v), lo = Math.min(...vs), hi = Math.max(...vs);
+    return { m, level: Math.max(0, Math.min(1, (m - lo) / (hi - lo || 1))), rate: p.rate, flow: Math.min(1, Math.abs(p.rate) / .35), next: p.next, measured: !!po };
+  }
+  const nf1 = new Intl.NumberFormat(CITY.locale, { maximumFractionDigits: 1 });
+  const height = (m) => L(`${nf1.format(m)} m`, `${nf1.format(m * 3.28084)} ft`);
+  function tideWords(T = tideNow()) {
+    if (!T) return null;
+    const state = Math.abs(T.rate) < .05 ? L('Marea quieta', 'Slack tide') : T.rate > 0 ? L('Marea subiendo', 'Tide rising') : L('Marea bajando', 'Tide falling');
+    const at = CITY.time(new Date(T.next.t));
+    const next = T.next.high ? L(`Pleamar a las ${at}, ${height(T.next.v)}`, `High tide at ${at}, ${height(T.next.v)}`) : L(`Bajamar a las ${at}, ${height(T.next.v)}`, `Low tide at ${at}, ${height(T.next.v)}`);
+    return { state, now: height(T.m), next };
+  }
+
   const safe = (f) => () => { if (!document.hidden) f().catch(() => {}); };
   function start() {
-    const plan = [[planes, 15000], [iss, 20000], [ships, 60000], [quakes, 300000], [air, 1200000], [traffic, 300000]];
+    const plan = [[planes, 15000], [iss, 20000], [ships, 60000], [quakes, 300000], [air, 1200000], [traffic, 300000], [tide, 600000]];
     for (const [f, ms] of plan) { safe(f)(); setInterval(safe(f), ms); }
   }
 
@@ -294,6 +338,8 @@ window.Extras = (() => {
     const q = [...X.quakes].filter((x) => Date.now() - x.time < 6 * 3.6e6).sort((a, b) => b.mag - a.mag)[0];
     if (q) out.push({ key: 'q' + q.id, mins: 30, ll: [q.lat, q.lon], kp: 3, zm: 11, cap: [L(`Terremoto · M${q.mag.toFixed(1)}`, `Earthquake · M${q.mag.toFixed(1)}`), q.place, `${ago(q.time)} · ${L('a', 'at')} ${Math.round(q.depth)} km ${L('de profundidad', 'deep')}`, C.ambar] });
     if (X.iss && X.iss.near < 1500 && Date.now() - X.iss.at < 60000) out.push({ key: 'iss', mins: 15, ll: null, cap: [L('La Estación Espacial pasa cerca', 'The Space Station is passing by'), L(`A ${fmt.format(X.iss.near)} km de aquí`, `${fmt.format(X.iss.near)} km from here`), L(`a ${X.iss.km} km de altura, a 27.600 km/h`, `${X.iss.km} km up, at 27,600 km/h`), C.hielo] });
+    const tw = BAY && tideWords();
+    if (tw) out.push({ key: 'tide', mins: 45, ll: [37.8105, -122.4769], kp: 3, zm: 13, cap: [L('La marea en el Golden Gate', 'The tide at the Golden Gate'), `${tw.state} · ${tw.now}`, tw.next, C.hielo] });
     if (X.air) { const w = X.air.worst; out.push({ key: 'airq', mins: 20, ll: [w.lat, w.lon], kp: 3.5, zm: 14, cap: [L('El aire ahora', 'The air right now'), L(`NO₂ ${X.air.median} µg/m³: ${airWord(X.air.median)}`, `NO₂ ${X.air.median} µg/m³: ${airWord(X.air.median)}`), L(`Lo más alto, ${w.name}: ${w.no2}`, `Highest at ${w.name}: ${w.no2}`), airColor(X.air.median)] }); }
     return out;
   }
@@ -317,5 +363,5 @@ window.Extras = (() => {
     return best && best.d < 30 ? { ...best, title: `${L('Terremoto', 'Earthquake')} M${best.q.mag.toFixed(1)}`, text: `${best.q.place} · ${whenText(best.q.time)} · ${magWords(best.q.mag)}` } : null;
   }
 
-  return { start, on: (f) => subs.push(f), bakePulso, drawPulso, attachMap, scenes, heroes, lensQuake, quakeCard, data: X };
+  return { start, on: (f) => subs.push(f), bakePulso, drawPulso, attachMap, scenes, heroes, lensQuake, quakeCard, tideNow, tideWords, data: X };
 })();

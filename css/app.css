@@ -65,6 +65,8 @@ h2 { font-family: var(--shout); font-weight: 700; font-size: 15px; margin: 0; le
 .fact b { font-family: var(--count); font-weight: 600; color: var(--paper); }
 .fact.cut b { color: var(--rojo); }
 .fact.train b { color: var(--tren); }
+.fact.tide b { color: var(--hielo); }
+.fact.tide:hover { border-color: var(--line); }
 .fact:hover { border-color: var(--hielo); }
 .pulso-legend { position: absolute; right: 20px; bottom: max(20px, env(safe-area-inset-bottom)); display: flex; gap: 14px; font-size: 12px; color: var(--mute); }
 .pulso-legend span { display: inline-flex; align-items: center; gap: 6px; }

@@ -10,7 +10,7 @@ window.Pulso = (() => {
   const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   const tipEl = document.getElementById('pulsoTip');
   const tickEl = document.getElementById('pulsoTicker');
-  let W = 0, H = 0, dpr = 1, proj = null, base = null, baseT = null, raf = 0, shownBig = 0;
+  let W = 0, H = 0, dpr = 1, proj = null, base = null, water = null, baseT = null, raf = 0, shownBig = 0;
   let view = d3.zoomIdentity, pointer = null, zoomB = null;
   let coast = null;   // land rings [[lat, lon], ...] for cities by the sea
   const trains = new Map();
@@ -52,14 +52,15 @@ window.Pulso = (() => {
     const z = Math.sqrt(view.k);
     if (coast) {
       // The water as a faint field of dots and the land left dark: the shore is where the dots stop.
-      const shore = () => { g.beginPath(); for (const r of coast) r.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
-      g.save();
-      shore(); g.rect(-20, -20, W + 40, H + 40); g.clip('evenodd');
-      g.fillStyle = C.hielo; g.globalAlpha = .26;
+      // The dots live in their own layer so the tide can raise and lower them every frame; base keeps a dim floor.
+      water = document.createElement('canvas'); water.width = W * dpr; water.height = H * dpr;
+      const w = water.getContext('2d'); w.scale(dpr, dpr);
+      w.beginPath(); for (const r of coast) r.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? w.lineTo(x, y) : w.moveTo(x, y); });
+      w.rect(-20, -20, W + 40, H + 40); w.clip('evenodd');
+      w.fillStyle = C.hielo;
       const step = 6, d = 1.4;
-      for (let y = 3; y < H; y += step) for (let x = (y / step) % 2 ? 3 : 6.5; x < W; x += step) g.fillRect(x, y, d, d);
-      g.restore();
-      g.globalAlpha = 1;
+      for (let y = 3; y < H; y += step) for (let x = (y / step) % 2 ? 3 : 6.5; x < W; x += step) w.fillRect(x, y, d, d);
+      g.globalAlpha = .1; g.drawImage(water, 0, 0, W, H); g.globalAlpha = 1;
     }
     for (const l of state.graph.lines.values()) {
       const thin = CITY.thin.includes(l.m);
@@ -128,6 +129,32 @@ window.Pulso = (() => {
     return [t.from[0] + (t.to[0] - t.from[0]) * k, t.from[1] + (t.to[1] - t.from[1]) * k];
   }
 
+  // The Bay breathes with the real tide: the water dots brighten as it rises and dim as it falls, and while the
+  // water moves, slow swells spread out from the Golden Gate on the flood and draw back into it on the ebb.
+  const GATE = [37.8105, -122.4769];
+  function tideLayer(now) {
+    if (!water) return;
+    const T = window.Extras?.tideNow?.();
+    if (!T) { ctx.globalAlpha = .16; ctx.drawImage(water, 0, 0); ctx.globalAlpha = 1; return; }
+    const bt = ctx.getTransform();
+    ctx.globalAlpha = .04 + .32 * T.level; ctx.drawImage(water, 0, 0);
+    if (!still && T.flow > .08) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const [cx, cy] = P(...GATE), R = Math.hypot(W, H) * .7, z = Math.sqrt(view.k), wd = 34 * z;
+      for (let i = 0; i < 3; i++) {
+        let k = (now / 14000 + i / 3) % 1; if (T.rate < 0) k = 1 - k;
+        const rad = k * R;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, rad + wd, 0, 6.283); ctx.arc(cx, cy, Math.max(0, rad - wd), 0, 6.283); ctx.clip('evenodd');
+        ctx.setTransform(bt);
+        ctx.globalAlpha = .4 * T.flow * Math.sin(Math.PI * k); ctx.drawImage(water, 0, 0);
+        ctx.restore();
+      }
+      ctx.setTransform(bt);
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function frame(now) {
     raf = 0;
     if (document.getElementById('pulso').hidden || !W) return;
@@ -137,6 +164,7 @@ window.Pulso = (() => {
       const r = view.k / baseT.k;
       ctx.setTransform(r, 0, 0, r, (view.x - baseT.x * r) * dpr, (view.y - baseT.y * r) * dpr);
       ctx.drawImage(base, 0, 0);
+      tideLayer(now);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const z = Math.sqrt(view.k), pulse = still ? 1 : .65 + .35 * Math.sin(now / 520);
@@ -289,6 +317,15 @@ window.Pulso = (() => {
     big.style.color = hero.cur.color; countTo(big, hero.cur.n); heroLine();
   }
   setInterval(() => { if (!document.hidden && !document.getElementById('pulso').hidden) heroStep(); }, 9000);
+
+  // The tide fact under the hero (Bay only): height now and which way it is going; the next high or low on hover.
+  function tideFact() {
+    const el = document.getElementById('pulsoTide'), tw = el && window.Extras?.tideWords?.();
+    if (!tw) return;
+    el.hidden = false; el.title = tw.next;
+    el.querySelector('b').textContent = tw.now; el.querySelector('span').textContent = tw.state.toLowerCase();
+  }
+  if (CITY.id === 'bay') { window.Extras?.on((k) => { if (k === 'tide') tideFact(); }); setInterval(() => { if (!document.hidden) tideFact(); }, 60000); }
 
   function when() {
     const ok = state.ok.trains || state.ok.bikes;
