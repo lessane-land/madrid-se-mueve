@@ -28,9 +28,9 @@
   <a class="brand" href="#pulso">Madrid se mueve</a>
   <nav class="views" aria-label="Vistas">
     <a href="#pulso">Pulso</a>
+    <a href="#mimadrid">Mi Madrid</a>
     <a href="#mapa">Mapa</a>
     <a href="#lineas">Líneas</a>
-    <a href="#historia">Historia</a>
   </nav>
 </header>
 
@@ -46,6 +46,7 @@
         <a class="fact train" href="#mapa"><b id="pulsoTrains">0</b> trenes rodando</a>
         <a class="fact cut" href="#lineas" id="pulsoCuts"><b>0</b> cortes</a>
         <a class="fact" href="#lineas"><b id="pulsoOk">0</b> líneas sin avisos</a>
+        <button class="fact screen-btn" type="button" data-screen><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Modo pantalla</span></button>
       </div>
     </div>
     <div class="tip pulso-tip" id="pulsoTip" hidden></div>
@@ -54,10 +55,55 @@
       <ol class="ticker" id="pulsoTicker" aria-live="polite"><li class="wait"><span>Esperando el primer cambio en vivo.</span></li></ol>
       <div class="pulso-tools"><span>Arrastra, acerca y pasa por encima</span><button type="button" id="pulsoReset">Ver todo Madrid</button></div>
     </aside>
+    <div class="director" aria-live="polite">
+      <div class="dir-caption" id="dirCaption"><div class="k"></div><div class="t"></div><div class="s"></div></div>
+      <div class="dir-brand"><span class="live on"><i></i>En vivo</span><span>madrid.lessane.es</span></div>
+      <button class="dir-exit" id="dirExit" type="button">Salir del modo pantalla</button>
+    </div>
     <div class="pulso-legend" aria-hidden="true">
       <span><i style="background: var(--verde)"></i>Estación de BiciMAD, brilla más con más bicis</span>
       <span><i style="background: var(--tren)"></i>Tren de Cercanías</span>
       <span><i style="background: var(--rojo)"></i>Tramo cortado</span>
+    </div>
+  </section>
+
+  <section class="view scroll" id="mimadrid" aria-label="Mi Madrid" hidden>
+    <div class="wrap">
+      <div class="board-head">
+        <div>
+          <h1>Mi Madrid</h1>
+          <p>Tus sitios y tus líneas, de un vistazo. Se guarda solo en este navegador.</p>
+        </div>
+        <div class="mm-actions">
+          <button class="toggle" type="button" id="mmEditBtn">Editar mis sitios y líneas</button>
+          <button class="toggle" type="button" data-screen>Modo pantalla</button>
+        </div>
+      </div>
+      <div class="card mm-edit" id="mmEdit" hidden>
+        <div class="mm-edit-grid">
+          <div>
+            <h2>Mis sitios</h2>
+            <ul class="mm-places" id="mmPlaces"></ul>
+            <div class="mm-add">
+              <label for="mmLabel">Nombre</label>
+              <input id="mmLabel" type="text" placeholder="Casa, Trabajo, Cole" autocomplete="off">
+              <label for="mmQuery">Busca una estación, parada o calle con BiciMAD</label>
+              <input id="mmQuery" type="search" placeholder="Lavapiés, Atocha, Sol" autocomplete="off">
+              <div class="mm-hits" id="mmHits"></div>
+              <button class="toggle" type="button" id="mmGeo">Usar mi ubicación</button>
+            </div>
+          </div>
+          <div>
+            <h2>Mis líneas</h2>
+            <p class="note">Toca para seguirlas.</p>
+            <div class="mm-chips" id="mmLines"></div>
+            <label for="mmBuses" class="mm-buslabel">Mis buses de EMT (opcional, separados por comas)</label>
+            <input id="mmBuses" type="text" placeholder="27, 150" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      <div class="mm-grid" id="mmGrid"></div>
+      <p class="note mm-foot"><a href="#historia">La historia de la bici en Madrid, desde 2024</a></p>
     </div>
   </section>
 
@@ -86,6 +132,7 @@
         <div class="flaps clock" id="clock" aria-label="Hora"></div>
       </div>
       <div class="board" id="board"></div>
+      <p class="note"><a href="#historia">La historia de la bici en Madrid, desde 2024</a></p>
       <p class="note">Estado: el mismo que usa Madrid hoy, del Consorcio y Renfe. Trenes: posiciones de Renfe en vivo. 30 días: tramos de problemas que ha guardado el servidor de Madrid hoy.</p>
     </div>
   </section>
@@ -93,6 +140,7 @@
   <section class="view scroll" id="historia" aria-label="Historia" hidden>
     <div class="wrap">
       <header>
+        <p class="note"><a href="#mimadrid">Volver a Mi Madrid</a></p>
         <h1 class="hist-title">La bici cuenta Madrid</h1>
         <p class="lead" id="hLead">Cargando los viajes de BiciMAD desde 2024.</p>
       </header>
@@ -140,14 +188,15 @@
 <script src="js/data.js"></script>
 <script src="js/pulso.js"></script>
 <script src="js/lineas.js"></script>
+<script src="js/mimadrid.js"></script>
 <script src="js/mapa.js"></script>
 <script src="js/historia.js"></script>
 <script>
 // Router: one view at a time, on the hash. Views start lazily the first time they are shown.
 (() => {
-  const VIEWS = ['pulso', 'mapa', 'lineas', 'historia'];
+  const VIEWS = ['pulso', 'mimadrid', 'mapa', 'lineas', 'historia'];
   const started = {};
-  const START = { pulso: window.Pulso, mapa: window.Mapa, lineas: window.Lineas, historia: window.Historia };
+  const START = { pulso: window.Pulso, mimadrid: window.MiMadrid, mapa: window.Mapa, lineas: window.Lineas, historia: window.Historia };
   function show() {
     let [v, arg] = location.hash.slice(1).split('-');
     if (!VIEWS.includes(v)) v = 'pulso';
@@ -158,6 +207,7 @@
   }
   addEventListener('hashchange', show);
   MSM.start();
+  started.pulso = true; START.pulso.start();
   show();
 })();
 </script>

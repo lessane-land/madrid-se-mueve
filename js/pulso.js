@@ -10,7 +10,7 @@ window.Pulso = (() => {
   const tipEl = document.getElementById('pulsoTip');
   const tickEl = document.getElementById('pulsoTicker');
   let W = 0, H = 0, dpr = 1, proj = null, base = null, baseT = null, raf = 0, shownBig = 0;
-  let view = d3.zoomIdentity, pointer = null;
+  let view = d3.zoomIdentity, pointer = null, zoomB = null;
   const trains = new Map();
   const ripples = [];
   const lastBikes = new Map();
@@ -199,8 +199,8 @@ window.Pulso = (() => {
 
   // The ticker: only real changes, newest first.
   const events = [];
-  function tick(kind, text) {
-    events.unshift({ kind, text, at: new Date() });
+  function tick(kind, text, geo) {
+    events.unshift({ kind, text, at: new Date(), ...(geo || {}) });
     if (events.length > 6) events.pop();
     const time = (d) => d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
     tickEl.replaceChildren(...events.map((e, i) => {
@@ -265,7 +265,7 @@ window.Pulso = (() => {
         Object.assign(t, { s0, s, v });
       } else Object.assign(t, { s: null });
       t.repAt = Date.now();
-      if (old && old.stopName !== stop && stop && x.status === 'STOPPED_AT') tick('train', `${x.line} parado en ${stop}`);
+      if (old && old.stopName !== stop && stop && x.status === 'STOPPED_AT') tick('train', `${x.line} parado en ${stop}`, { trainId: x.id, line: x.line, stop });
       t.stopName = stop;
       trains.set(x.id, t);
     }
@@ -289,18 +289,97 @@ window.Pulso = (() => {
       lastBikes.set(s.id, s.n);
     }
     if (ripples.length > 400) ripples.splice(0, ripples.length - 400);
-    if (gained && gained.d >= 2) tick('bike', `${gained.s.name} +${gained.d} bicis`);
-    if (lost && lost.d <= -2) tick('bikeout', `${lost.s.name} ${lost.d} bicis`);
+    if (gained && gained.d >= 2) tick('bike', `${gained.s.name} +${gained.d} bicis`, { lat: gained.s.lat, lon: gained.s.lon, station: gained.s.id, d: gained.d });
+    if (lost && lost.d <= -2) tick('bikeout', `${lost.s.name} ${lost.d} bicis`, { lat: lost.s.lat, lon: lost.s.lon, station: lost.s.id, d: lost.d });
     bake(); kick(); countTo(document.getElementById('pulsoBig'), b.free);
   }
 
+
+  // Modo pantalla: full screen, no interface, the camera flies to what is happening right now.
+  const D = { on: false, timer: 0, n: 0, shown: new Map(), lock: null, idle: 0 };
+  const capEl = () => document.getElementById('dirCaption');
+  const clip = (t, n) => (t.length <= n ? t : t.slice(0, t.lastIndexOf(' ', n)) + '...');
+  function caption(kind, title, sub, color) {
+    const el = capEl(); el.classList.remove('in');
+    setTimeout(() => {
+      el.querySelector('.k').textContent = kind; el.querySelector('.t').textContent = title; el.querySelector('.s').textContent = sub || '';
+      el.style.setProperty('--cap', color || C.paper); el.classList.add('in');
+    }, still ? 0 : 450);
+  }
+  function fly(lat, lon, k, dur) {
+    const [px, py] = proj(lat, lon), narrow = W < 720;
+    const cx = narrow ? W * .5 : W * .6, cy = narrow ? H * .38 : H * .44;
+    const t = d3.zoomIdentity.translate(cx - k * px, cy - k * py).scale(k);
+    d3.select(cv).transition().duration(still ? 0 : dur).ease(d3.easeCubicInOut).call(zoomB.transform, t);
+  }
+  function home(dur) { d3.select(cv).transition().duration(still ? 0 : dur).ease(d3.easeCubicInOut).call(zoomB.transform, d3.zoomIdentity); }
+  const fresh = (key, mins) => { const t = D.shown.get(key); return !t || Date.now() - t > mins * 60000; };
+  const mark = (key) => D.shown.set(key, Date.now());
+  function nextScene() {
+    const list = [];
+    for (const it of state.status?.items ?? []) if (it.red && it.pts && it.partial && fresh('cut' + it.b, 6)) list.push({ key: 'cut' + it.b, run: () => {
+      const xs = it.pts.map((p) => proj(...p)), x0 = Math.min(...xs.map((p) => p[0])), x1 = Math.max(...xs.map((p) => p[0])), y0 = Math.min(...xs.map((p) => p[1])), y1 = Math.max(...xs.map((p) => p[1]));
+      const k = Math.max(1.6, Math.min(6, .42 * W / Math.max(30, x1 - x0), .42 * H / Math.max(30, y1 - y0)));
+      const mid = it.pts[Math.floor(it.pts.length / 2)];
+      fly(mid[0], mid[1], k, 4200);
+      caption('Corte en vivo', `${it.b} cortada entre ${it.scope.from} y ${it.scope.to}`, clip(it.title, 130), C.rojo);
+    } });
+    const tr = events.find((e) => e.kind === 'train' && trains.has(e.trainId) && fresh('tr' + e.trainId + e.stop, 20));
+    if (tr) list.push({ key: 'tr' + tr.trainId + tr.stop, run: () => {
+      const t = trains.get(tr.trainId); fly(t.cur[0], t.cur[1], 4.5, 4200);
+      caption('Cercanías ' + tr.line, `Parado en ${tr.stop}`, `${trains.size} trenes rodando por Madrid ahora mismo`, t.color);
+    } });
+    const bk = events.find((e) => (e.kind === 'bike' || e.kind === 'bikeout') && fresh('bk' + e.station + e.at, 30));
+    if (bk) list.push({ key: 'bk' + bk.station + bk.at, run: () => {
+      const st = state.bikes?.list.find((b) => b.id === bk.station);
+      fly(bk.lat, bk.lon, 5, 4200);
+      caption('BiciMAD', `${st?.name ?? 'Estación'} · ${bk.d > 0 ? '+' : ''}${bk.d} bicis`, st ? `${st.n} bicis y ${st.docks} anclajes libres ahora` : '', bk.d > 0 ? C.verde : C.ambar);
+    } });
+    for (const pl of window.MiMadrid?.places?.() ?? []) if (fresh('pl' + pl.id, 8)) list.push({ key: 'pl' + pl.id, run: () => {
+      const b = window.MiMadrid.nearestBike(pl);
+      fly(pl.lat, pl.lon, 5.5, 4200);
+      caption('Mi Madrid · ' + pl.label, b ? `${b.n} bicis en ${b.name}` : pl.name, b ? `${b.docks} anclajes libres · a ${Math.round(b.m)} m` : '', b ? (b.n === 0 ? C.rojo : b.n < 4 ? C.ambar : C.verde) : C.paper);
+    } });
+    D.n++;
+    if (D.n % 2 === 1 || !list.length) {
+      return () => { home(3600); caption('Madrid se mueve', `${fmt.format(state.bikes?.free ?? 0)} bicis libres`, `${trains.size} trenes de Cercanías rodando · ${new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })}`, C.verde); };
+    }
+    const pick = list[0]; mark(pick.key); return pick.run;
+  }
+  function stepDirector() {
+    if (!D.on) return;
+    nextScene()();
+    D.timer = setTimeout(stepDirector, still ? 14000 : 11000);
+  }
+  async function lockScreen() { try { D.lock = await navigator.wakeLock?.request('screen'); } catch {} }
+  function enterScreen() {
+    if (D.on) return; D.on = true;
+    document.body.classList.add('screen');
+    document.documentElement.requestFullscreen?.().catch(() => {});
+    lockScreen(); pointer = null;
+    setTimeout(() => { size(); stepDirector(); }, 300);
+  }
+  function exitScreen() {
+    if (!D.on) return; D.on = false; clearTimeout(D.timer);
+    document.body.classList.remove('screen', 'still-mouse');
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    D.lock?.release?.().catch(() => {}); D.lock = null;
+    capEl().classList.remove('in'); home(1200); setTimeout(size, 300);
+  }
+  document.addEventListener('visibilitychange', () => { if (D.on && !document.hidden) lockScreen(); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && D.on) exitScreen(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') exitScreen(); });
+  addEventListener('pointermove', () => { if (!D.on) return; document.body.classList.remove('still-mouse'); clearTimeout(D.idle); D.idle = setTimeout(() => document.body.classList.add('still-mouse'), 2500); });
+
   function start() {
+    document.querySelectorAll('[data-screen]').forEach((b) => b.addEventListener('click', enterScreen));
+    document.getElementById('dirExit').addEventListener('click', exitScreen);
     new ResizeObserver(() => { size(); kick(); }).observe(cv);
-    const zoom = d3.zoom().scaleExtent([1, 8]).on('zoom', (e) => { view = e.transform; pointer = null; kick(); })
+    const zoom = zoomB = d3.zoom().scaleExtent([1, 8]).on('zoom', (e) => { view = e.transform; pointer = null; kick(); })
       .on('end', () => { bake(); kick(); });
     d3.select(cv).call(zoom).on('dblclick.zoom', null);
     document.getElementById('pulsoReset').onclick = () => d3.select(cv).transition().duration(still ? 0 : 700).call(zoom.transform, d3.zoomIdentity);
-    cv.addEventListener('pointermove', (e) => { if (e.buttons) return; const r = cv.getBoundingClientRect(); pointer = [e.clientX - r.left, e.clientY - r.top]; kick(); if (still) frame(performance.now()); });
+    cv.addEventListener('pointermove', (e) => { if (e.buttons || D.on) return; const r = cv.getBoundingClientRect(); pointer = [e.clientX - r.left, e.clientY - r.top]; kick(); if (still) frame(performance.now()); });
     cv.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') { const r = cv.getBoundingClientRect(); pointer = [e.clientX - r.left, e.clientY - r.top]; kick(); } });
     cv.addEventListener('pointerleave', () => { pointer = null; tipEl.hidden = true; kick(); });
     on('graph', () => { bake(); kick(); words(); });
@@ -314,5 +393,5 @@ window.Pulso = (() => {
     on('health', when);
     setInterval(when, 30000);
   }
-  return { start, shown: () => { size(); kick(); } };
+  return { start, enterScreen, exitScreen, shown: () => { size(); kick(); } };
 })();

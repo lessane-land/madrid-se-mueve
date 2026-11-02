@@ -7,12 +7,13 @@ One page, four views on the hash, served by GitHub Pages from `main`, root folde
 
 | View | Hash | What it is | Code |
 |---|---|---|---|
-| Pulso | `#pulso` (default) | The city drawn by its BiciMAD stations, rail lines and moving trains; the free-bike count and the cuts | `js/pulso.js`, canvas |
+| Pulso | `#pulso` (default) | The city drawn by its BiciMAD stations, rail lines and trains rolling on their track; ripples, ticker, lens, drag and zoom. **Modo pantalla**: full screen, wake lock, a director flies to live cuts, train stops, bike changes and your places | `js/pulso.js`, canvas |
+| Mi Madrid | `#mimadrid` | Your places and lines in big blocks: line status, bikes and docks nearby, next EMT buses, nearby rail. Saved in localStorage (`msm.mimadrid.v1`) | `js/mimadrid.js` |
 | Mapa | `#mapa`, `#mapa-L10` focuses a line | Leaflet map: lines, cuts, trains, bikes, EMT buses from zoom 16 | `js/mapa.js` |
 | Líneas | `#lineas` | Departure board: every rail line on split flaps, trains running, 30 days of trouble | `js/lineas.js` |
-| Historia | `#historia` | BiciMAD since 2024 against rain, free days, strikes and the blackout | `js/historia.js`, d3 |
+| Historia | `#historia`, linked from Mi Madrid and Líneas, not in the nav | BiciMAD since 2024 against rain, free days, strikes and the blackout | `js/historia.js`, d3 |
 
-`js/data.js` owns every fetch and poll (trains 15 s, bikes 60 s, status 2 min, episodes 10 min, paused while the tab is hidden);
+`js/data.js` owns every fetch and poll (trains 15 s, bikes 30 s, status 2 min, episodes 10 min, paused while the tab is hidden);
 views subscribe with `MSM.on(name, fn)`. `historia.html` only redirects to `#historia`.
 
 ## Where the data comes from
