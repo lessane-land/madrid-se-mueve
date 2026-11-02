@@ -16,6 +16,15 @@ Saved places live only in the visitor's browser, localStorage key `msm.mimadrid.
 
 `saver/` is a macOS screen saver (Xcode) that loads `/?pantalla#pulso`: Pulso in Modo pantalla with no exit button and no cursor.
 
+**Two cities, two languages.** `js/city.js` loads first and picks the city (bay.lessane.es, `?city=bay` or
+`<meta name="msm-city" content="bay">` is the SF Bay Area; anything else is Madrid) and the language (`?lang=es|en`,
+remembered, else the browser's). Every user-facing string is written as `L('es', 'en')` in the views, and as
+`data-es` / `data-en` (with `{city}`, `{bike}`, `{title}` tokens) in `index.html`. The Bay edition lives at
+bay.lessane.es: repo lessane-land/bay-se-mueve holds only the page that `scripts/bay_index.py` writes, and loads every
+script, style and font from madrid.lessane.es. Bay data: `graph-bay.json` (estado-madrid, monthly from 511),
+Edge Function `vivo?city=bay&what=vehicles|alerts` (511, every 90 s and 5 min), Bay Wheels GBFS from the browser.
+No Historia and no 30-day episodes for the Bay.
+
 `js/data.js` owns every fetch and poll (trains 15 s, bikes 30 s, status 2 min, episodes 10 min, paused while the tab is hidden);
 views subscribe with `MSM.on(name, fn)`. `historia.html` only redirects to `#historia`.
 

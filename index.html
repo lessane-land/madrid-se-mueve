@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+<!-- Madrid edition. bay.lessane.es serves a copy of this page from the bay-se-mueve repo (scripts/bay_index.py). -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -22,81 +23,88 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="css/app.css">
+<script src="js/city.js"></script>
 </head>
 <body>
 <header class="bar">
-  <a class="brand" href="#pulso">Madrid se mueve</a>
-  <nav class="views" aria-label="Vistas">
-    <a href="#pulso">Pulso</a>
-    <a href="#mapa">Mapa</a>
-    <a href="#lineas">Líneas</a>
-  </nav>
+  <a class="brand" href="#pulso" data-es="{title}">Madrid se mueve</a>
+  <div class="bar-right">
+    <nav class="views" aria-label="Vistas" data-en-aria="Views">
+      <a href="#pulso">Pulso</a>
+      <a href="#mapa" data-en="Map">Mapa</a>
+      <a href="#lineas" data-en="Lines">Líneas</a>
+    </nav>
+    <div class="views meta">
+      <a id="otherCity" href="https://bay.lessane.es/">Bay Area</a>
+      <button type="button" id="langBtn" aria-label="Read in English" lang="en">EN</button>
+    </div>
+  </div>
 </header>
 
 <main>
   <section class="view" id="pulso" aria-label="Pulso">
-    <canvas id="pulsoCanvas" aria-label="Madrid dibujado con sus estaciones de BiciMAD, la red de Metro y Cercanías y los trenes en marcha" role="img"></canvas>
+    <canvas id="pulsoCanvas" aria-label="Madrid dibujado con sus estaciones de BiciMAD, la red de Metro y Cercanías y los trenes en marcha" data-es-aria="{City} dibujado con sus estaciones de {bike}, sus líneas de tren y los trenes en marcha" data-en-aria="{City} drawn by its {bike} stations, rail lines and trains on the move" role="img"></canvas>
     <div class="pulso-veil"></div>
     <div class="pulso-text">
-      <div class="eyebrow"><span class="live" id="pulsoLive"><i></i><span id="pulsoWhen">Conectando</span></span></div>
+      <div class="eyebrow"><span class="live" id="pulsoLive"><i></i><span id="pulsoWhen" data-en="Connecting">Conectando</span></span></div>
       <div class="giant" id="pulsoBig">0</div>
-      <p id="pulsoLine">bicis esperando en Madrid ahora mismo.</p>
+      <p id="pulsoLine" data-es="bicis esperando en {city} ahora mismo." data-en="bikes waiting across {city} right now.">bicis esperando en Madrid ahora mismo.</p>
       <div class="facts">
-        <a class="fact train" href="#mapa"><b id="pulsoTrains">0</b> trenes rodando</a>
-        <a class="fact cut" href="#lineas" id="pulsoCuts"><b>0</b> cortes</a>
-        <a class="fact" href="#lineas"><b id="pulsoOk">0</b> líneas sin avisos</a>
-        <button class="fact screen-btn" type="button" data-screen><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Modo pantalla</span></button>
+        <a class="fact train" href="#mapa"><b id="pulsoTrains">0</b><span data-en=" trains running"> trenes rodando</span></a>
+        <a class="fact cut" href="#lineas" id="pulsoCuts"><b>0</b><span data-en=" closures"> cortes</span></a>
+        <a class="fact" href="#lineas"><b id="pulsoOk">0</b><span data-en=" lines with no alerts"> líneas sin avisos</span></a>
+        <button class="fact screen-btn" type="button" data-screen><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span data-en="Screen mode">Modo pantalla</span></button>
       </div>
     </div>
     <div class="tip pulso-tip" id="pulsoTip" hidden></div>
     <div class="pulso-search"><div class="search" id="pulsoSearch">
-      <input type="search" placeholder="Busca un sitio: Atocha, Lavapiés, tu calle" aria-label="Buscar un sitio en Madrid" autocomplete="off">
+      <input type="search" placeholder="Busca un sitio: Atocha, Lavapiés, tu calle" data-ph="{search}" aria-label="Buscar un sitio en Madrid" data-es-aria="Buscar un sitio en {city}" data-en-aria="Search a place in {city}" autocomplete="off">
       <div class="s-hits" hidden></div>
       <div class="s-chips"></div>
     </div></div>
     <aside class="pulso-side">
-      <div class="eyebrow">Acaba de pasar</div>
-      <ol class="ticker" id="pulsoTicker" aria-live="polite"><li class="wait"><span>Esperando el primer cambio en vivo.</span></li></ol>
-      <div class="pulso-tools"><span>Arrastra, acerca y pasa por encima</span><button type="button" id="pulsoReset">Ver todo Madrid</button></div>
+      <div class="eyebrow" data-en="Just happened">Acaba de pasar</div>
+      <ol class="ticker" id="pulsoTicker" aria-live="polite"><li class="wait"><span data-en="Waiting for the first live change.">Esperando el primer cambio en vivo.</span></li></ol>
+      <div class="pulso-tools"><span data-en="Drag, zoom and hover">Arrastra, acerca y pasa por encima</span><button type="button" id="pulsoReset" data-es="Ver todo {city}" data-en="See all of {city}">Ver todo Madrid</button></div>
     </aside>
     <div class="director" aria-live="polite">
       <div class="dir-caption" id="dirCaption"><div class="k"></div><div class="t"></div><div class="s"></div></div>
-      <div class="dir-brand"><span class="live on"><i></i>En vivo</span><span>madrid.lessane.es</span></div>
-      <button class="dir-exit" id="dirExit" type="button">Salir del modo pantalla</button>
+      <div class="dir-brand"><span class="live on"><i></i><span data-en="Live">En vivo</span></span><span data-es="{site}">madrid.lessane.es</span></div>
+      <button class="dir-exit" id="dirExit" type="button" data-en="Leave screen mode">Salir del modo pantalla</button>
     </div>
     <div class="pulso-legend" aria-hidden="true">
-      <span><i style="background: var(--verde)"></i>Estación de BiciMAD, brilla más con más bicis</span>
-      <span><i style="background: var(--tren)"></i>Tren de Cercanías</span>
-      <span><i style="background: var(--rojo)"></i>Tramo cortado</span>
+      <span><i style="background: var(--verde)"></i><span data-es="Estación de {bike}, brilla más con más bicis" data-en="{bike} station, brighter with more bikes">Estación de BiciMAD, brilla más con más bicis</span></span>
+      <span><i style="background: var(--tren)"></i><span data-es="Tren en marcha" data-en="Train on the move">Tren de Cercanías</span></span>
+      <span><i style="background: var(--rojo)"></i><span data-en="Closed stretch">Tramo cortado</span></span>
     </div>
   </section>
 
   <section class="view" id="mapa" aria-label="Mapa" hidden>
-    <div id="map" role="application" aria-label="Mapa de Madrid con Metro, Cercanías, buses y BiciMAD en vivo"></div>
+    <div id="map" role="application" aria-label="Mapa de Madrid con Metro, Cercanías, buses y BiciMAD en vivo" data-es-aria="Mapa de {city} con trenes, buses y {bike} en vivo" data-en-aria="Live map of {city} with trains, buses and {bike}"></div>
     <div class="map-top">
     <div class="search" id="mapSearch">
-      <input type="search" placeholder="Busca un sitio: Atocha, Lavapiés, tu calle" aria-label="Buscar un sitio en Madrid" autocomplete="off">
+      <input type="search" placeholder="Busca un sitio: Atocha, Lavapiés, tu calle" data-ph="{search}" aria-label="Buscar un sitio en Madrid" data-es-aria="Buscar un sitio en {city}" data-en-aria="Search a place in {city}" autocomplete="off">
       <div class="s-hits" hidden></div>
       <div class="s-chips"></div>
     </div>
-    <div class="map-layers" role="group" aria-label="Capas">
-      <button class="toggle" data-layer="metro" aria-pressed="true"><i style="background: #2DBEF0"></i><span class="k">Metro</span></button>
-      <button class="toggle" data-layer="trains" aria-pressed="true"><i style="background: var(--tren)"></i><span class="k">Trenes</span><span class="n" id="mTrains">0</span></button>
+    <div class="map-layers" role="group" aria-label="Capas" data-en-aria="Layers">
+      <button class="toggle" data-layer="metro" aria-pressed="true"><i style="background: #2DBEF0"></i><span class="k" data-es="{railLayer}" data-en="{railLayer}">Metro</span></button>
+      <button class="toggle" data-layer="trains" aria-pressed="true"><i style="background: var(--tren)"></i><span class="k" data-en="Trains">Trenes</span><span class="n" id="mTrains">0</span></button>
       <button class="toggle" data-layer="buses" aria-pressed="true"><i style="background: var(--hielo); border-radius: 3px"></i><span class="k">Buses</span><span class="n" id="mBuses">0</span></button>
-      <button class="toggle" data-layer="bikes" aria-pressed="true"><i style="background: var(--verde)"></i><span class="k">Bicis libres</span><span class="n" id="mBikes">0</span></button>
-      <button class="toggle screen-toggle" type="button" data-map-screen><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span>Modo pantalla</span></button>
+      <button class="toggle" data-layer="bikes" aria-pressed="true"><i style="background: var(--verde)"></i><span class="k" data-en="Free bikes">Bicis libres</span><span class="n" id="mBikes">0</span></button>
+      <button class="toggle screen-toggle" type="button" data-map-screen><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg><span data-en="Screen mode">Modo pantalla</span></button>
     </div>
     </div>
     <div class="place-card" id="placeCard" hidden></div>
     <div class="director map-director" aria-live="polite">
       <div class="dir-caption" id="mapCaption"><div class="k"></div><div class="t"></div><div class="s"></div></div>
-      <div class="dir-brand"><span class="live on"><i></i>En vivo</span><span>madrid.lessane.es</span></div>
-      <button class="dir-exit" id="mapExit" type="button">Salir del modo pantalla</button>
+      <div class="dir-brand"><span class="live on"><i></i><span data-en="Live">En vivo</span></span><span data-es="{site}">madrid.lessane.es</span></div>
+      <button class="dir-exit" id="mapExit" type="button" data-en="Leave screen mode">Salir del modo pantalla</button>
     </div>
     <div class="map-panel">
-      <h2>Ahora mismo</h2>
+      <h2 data-en="Right now">Ahora mismo</h2>
       <div id="mStatus"></div>
-      <div class="hint" id="mHint">Acércate a una calle para ver los buses que llegan a sus paradas.</div>
+      <div class="hint" id="mHint" data-es="{busHint}" data-en="{busHint}">Acércate a una calle para ver los buses que llegan a sus paradas.</div>
     </div>
   </section>
 
@@ -104,56 +112,56 @@
     <div class="wrap">
       <div class="board-head">
         <div>
-          <h1>Líneas</h1>
-          <p>Cada línea de Metro, Metro Ligero y Cercanías: cómo está ahora, cuántos trenes ruedan y cuántas veces ha tenido problemas en los últimos 30 días. Toca una para verla en el mapa.</p>
+          <h1 data-en="Lines">Líneas</h1>
+          <p data-es="{boardIntro}" data-en="{boardIntro}">Cada línea de Metro, Metro Ligero y Cercanías: cómo está ahora, cuántos trenes ruedan y cuántas veces ha tenido problemas en los últimos 30 días. Toca una para verla en el mapa.</p>
         </div>
-        <div class="flaps clock" id="clock" aria-label="Hora"></div>
+        <div class="flaps clock" id="clock" aria-label="Hora" data-en-aria="Time"></div>
       </div>
       <div class="board" id="board"></div>
-      <p class="note"><a href="#historia">La historia de la bici en Madrid, desde 2024</a></p>
-      <p class="note">Estado: el mismo que usa Madrid hoy, del Consorcio y Renfe. Trenes: posiciones de Renfe en vivo. 30 días: tramos de problemas que ha guardado el servidor de Madrid hoy.</p>
+      <p class="note" data-only="madrid"><a href="#historia" data-en="The story of the bike in Madrid, since 2024">La historia de la bici en Madrid, desde 2024</a></p>
+      <p class="note" data-es="{sourceNote}" data-en="{sourceNote}">Estado: el mismo que usa Madrid hoy, del Consorcio y Renfe. Trenes: posiciones de Renfe en vivo. 30 días: tramos de problemas que ha guardado el servidor de Madrid hoy.</p>
     </div>
   </section>
 
   <section class="view scroll" id="historia" aria-label="Historia" hidden>
     <div class="wrap">
       <header>
-        <p class="note"><a href="#mapa">Volver al mapa</a></p>
-        <h1 class="hist-title">La bici cuenta Madrid</h1>
-        <p class="lead" id="hLead">Cargando los viajes de BiciMAD desde 2024.</p>
+        <p class="note"><a href="#mapa" data-en="Back to the map">Volver al mapa</a></p>
+        <h1 class="hist-title" data-en="The bike tells Madrid">La bici cuenta Madrid</h1>
+        <p class="lead" id="hLead" data-en="Loading BiciMAD trips since 2024.">Cargando los viajes de BiciMAD desde 2024.</p>
       </header>
       <section class="tiles">
-        <div class="card tile"><div class="k" id="hk1">Viajes en el año</div><div class="v" id="hv1">-</div><div class="s" id="hs1"></div></div>
-        <div class="card tile"><div class="k">Récord de un día</div><div class="v" id="hv2">-</div><div class="s" id="hs2"></div></div>
-        <div class="card tile"><div class="k">Usuarios activos, último mes</div><div class="v" id="hv3">-</div><div class="s" id="hs3"></div></div>
-        <div class="card tile"><div class="k">Día laborable con más de 10 mm de lluvia</div><div class="v" id="hv4">-</div><div class="s">viajes frente a un día normal</div></div>
+        <div class="card tile"><div class="k" id="hk1" data-en="Trips this year">Viajes en el año</div><div class="v" id="hv1">-</div><div class="s" id="hs1"></div></div>
+        <div class="card tile"><div class="k" data-en="Busiest day">Récord de un día</div><div class="v" id="hv2">-</div><div class="s" id="hs2"></div></div>
+        <div class="card tile"><div class="k" data-en="Active users, last month">Usuarios activos, último mes</div><div class="v" id="hv3">-</div><div class="s" id="hs3"></div></div>
+        <div class="card tile"><div class="k" data-en="Weekday with over 10 mm of rain">Día laborable con más de 10 mm de lluvia</div><div class="v" id="hv4">-</div><div class="s" data-en="trips against a normal day">viajes frente a un día normal</div></div>
       </section>
       <section class="card">
-        <h2>Viajes al día, con lo que pasó</h2>
-        <p class="note">Línea: media de 7 días. Puntos: cada día. Bandas: días gratis, huelgas y el apagón.</p>
-        <div class="legend"><span style="--sw: var(--hielo)">Gratis o evento</span><span style="--sw: var(--ambar)">Huelga de tren</span><span style="--sw: var(--rojo)">Apagón</span></div>
+        <h2 data-en="Trips a day, and what happened">Viajes al día, con lo que pasó</h2>
+        <p class="note" data-en="Line: 7-day average. Dots: each day. Bands: free days, strikes and the blackout.">Línea: media de 7 días. Puntos: cada día. Bandas: días gratis, huelgas y el apagón.</p>
+        <div class="legend"><span style="--sw: var(--hielo)" data-en="Free or event">Gratis o evento</span><span style="--sw: var(--ambar)" data-en="Rail strike">Huelga de tren</span><span style="--sw: var(--rojo)" data-en="Blackout">Apagón</span></div>
         <div class="chart tall" id="cDaily"></div>
       </section>
       <section class="grid2">
-        <div class="card"><h2>Gratis gana a huelga</h2><p class="note">Viajes de cada evento frente a lo normal. Las huelgas que bajan coincidieron con lluvia; en seco apenas mueven la bici.</p><div class="chart" id="cEvents"></div></div>
-        <div class="card"><h2>La lluvia pesa más que una huelga</h2><p class="note">Días laborables sin evento, mediana frente a lo normal, según la lluvia del día.</p><div class="chart" id="cRain"></div></div>
+        <div class="card"><h2 data-en="Free beats strike">Gratis gana a huelga</h2><p class="note" data-en="Trips on each event against normal. The strikes that dip fell on rainy days; on dry days they barely move the bike.">Viajes de cada evento frente a lo normal. Las huelgas que bajan coincidieron con lluvia; en seco apenas mueven la bici.</p><div class="chart" id="cEvents"></div></div>
+        <div class="card"><h2 data-en="Rain weighs more than a strike">La lluvia pesa más que una huelga</h2><p class="note" data-en="Weekdays with no event, median against normal, by the day's rain.">Días laborables sin evento, mediana frente a lo normal, según la lluvia del día.</p><div class="chart" id="cRain"></div></div>
       </section>
       <section class="grid2">
-        <div class="card"><h2>Media diaria por mes</h2><p class="note">Agosto siempre baja, septiembre siempre sube.</p><div class="chart" id="cMonths"></div></div>
-        <div class="card"><h2>Usuarios activos</h2><p class="note">Usuarios con actividad en el mes, según EMT.</p><div class="chart" id="cUsers"></div></div>
+        <div class="card"><h2 data-en="Daily average by month">Media diaria por mes</h2><p class="note" data-en="August always drops, September always climbs.">Agosto siempre baja, septiembre siempre sube.</p><div class="chart" id="cMonths"></div></div>
+        <div class="card"><h2 data-en="Active users">Usuarios activos</h2><p class="note" data-en="Users active in the month, according to EMT.">Usuarios con actividad en el mes, según EMT.</p><div class="chart" id="cUsers"></div></div>
       </section>
       <section class="card">
-        <h2>Lo que Madrid hoy ha visto</h2>
-        <p class="note">Tramos de problemas por línea que guarda el servidor de Madrid hoy, últimos 30 días, en vivo.</p>
+        <h2 data-en="What Madrid hoy has seen">Lo que Madrid hoy ha visto</h2>
+        <p class="note" data-en="Trouble stretches per line recorded by the Madrid hoy server, last 30 days, live.">Tramos de problemas por línea que guarda el servidor de Madrid hoy, últimos 30 días, en vivo.</p>
         <div class="counts" id="epCounts"></div>
-        <div class="eps"><table><thead><tr><th>Empieza</th><th>Línea</th><th>Tramo</th><th>Duración</th><th>Aviso</th></tr></thead><tbody id="epBody"><tr><td colspan="5" class="loading">Cargando.</td></tr></tbody></table></div>
+        <div class="eps"><table><thead><tr><th data-en="Starts">Empieza</th><th data-en="Line">Línea</th><th data-en="Stretch">Tramo</th><th data-en="Duration">Duración</th><th data-en="Notice">Aviso</th></tr></thead><tbody id="epBody"><tr><td colspan="5" class="loading" data-en="Loading.">Cargando.</td></tr></tbody></table></div>
       </section>
       <section class="notes">
-        <b>Cómo leerlo.</b>
+        <b data-en="How to read it.">Cómo leerlo.</b>
         <ul>
-          <li>Lo normal de cada día sale de los propios datos de BiciMAD, no de un modelo: mismo día de la semana, sin lluvia y sin eventos, cinco semanas a cada lado.</li>
-          <li>Viajes y usuarios llegan en vivo del portal de datos abiertos de EMT, que publica cada mes. La lluvia es la mediana de las estaciones meteorológicas del Ayuntamiento.</li>
-          <li>Los eventos están buscados en prensa y webs oficiales. Si falta uno, la gráfica lo enseña como un pico o un hueco sin banda.</li>
+          <li data-en="Each day's normal comes from BiciMAD's own data, not a model: same weekday, no rain and no events, five weeks either side.">Lo normal de cada día sale de los propios datos de BiciMAD, no de un modelo: mismo día de la semana, sin lluvia y sin eventos, cinco semanas a cada lado.</li>
+          <li data-en="Trips and users come live from the EMT open data portal, published monthly. Rain is the median of the city's weather stations.">Viajes y usuarios llegan en vivo del portal de datos abiertos de EMT, que publica cada mes. La lluvia es la mediana de las estaciones meteorológicas del Ayuntamiento.</li>
+          <li data-en="Events were found in the press and official sites. If one is missing, the chart shows it as a spike or a dip with no band.">Los eventos están buscados en prensa y webs oficiales. Si falta uno, la gráfica lo enseña como un pico o un hueco sin banda.</li>
           <li id="hSrc">Datos: <a href="https://datos.madrid.es" target="_blank" rel="noopener">datos.madrid.es</a>, EMT, Renfe, Consorcio de Transportes, Madrid hoy. Mapa: OpenStreetMap.</li>
         </ul>
       </section>
@@ -172,7 +180,7 @@
 <script>
 // Router: one view at a time, on the hash. Views start lazily the first time they are shown.
 (() => {
-  const VIEWS = ['pulso', 'mapa', 'lineas', 'historia'];
+  const VIEWS = CITY.historia ? ['pulso', 'mapa', 'lineas', 'historia'] : ['pulso', 'mapa', 'lineas'];
   const started = {};
   const START = { pulso: window.Pulso, mapa: window.Mapa, lineas: window.Lineas, historia: window.Historia };
   function show() {
@@ -184,6 +192,30 @@
     START[v].shown?.(arg);
   }
   addEventListener('hashchange', show);
+  // Language and city: swap the static text, then let the views write theirs.
+  const T = CITY.L, cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const tokens = { title: CITY.title, city: CITY.name, City: cap(CITY.name), bike: CITY.bike, site: CITY.site, search: CITY.search, sourceNote: CITY.sourceNote,
+    railLayer: CITY.id === 'bay' ? T('Líneas', 'Lines') : 'Metro',
+    busHint: CITY.busStops ? T('Acércate a una calle para ver los buses que llegan a sus paradas.', 'Zoom into a street to see the buses arriving at its stops.') : T('Acércate para ver todos los buses en marcha.', 'Zoom in to see every bus on the move.'),
+    boardIntro: CITY.id === 'bay' ? T('Cada línea de BART, Muni Metro, cable car, tren regional y ferry: cómo está ahora y cuántos trenes ruedan. Toca una para verla en el mapa.', 'Every BART, Muni Metro, cable car, regional rail and ferry line: how it is doing now and how many trains are running. Tap one to see it on the map.')
+      : T('Cada línea de Metro, Metro Ligero y Cercanías: cómo está ahora, cuántos trenes ruedan y cuántas veces ha tenido problemas en los últimos 30 días. Toca una para verla en el mapa.', 'Every Metro, light rail and commuter rail line: how it is doing now, how many trains are running and how often it has had trouble in the last 30 days. Tap one to see it on the map.') };
+  const fill = (t) => t.replace(/\{(\w+)\}/g, (_, k) => tokens[k] ?? '');
+  document.documentElement.lang = CITY.lang;
+  document.title = CITY.title;
+  for (const el of document.querySelectorAll('[data-es],[data-en]')) {
+    const t = CITY.lang === 'en' ? el.dataset.en ?? el.dataset.es : el.dataset.es;
+    if (t != null) el.textContent = fill(t);
+  }
+  for (const el of document.querySelectorAll('[data-es-aria],[data-en-aria]')) {
+    const t = CITY.lang === 'en' ? el.dataset.enAria ?? el.dataset.esAria : el.dataset.esAria;
+    if (t != null) el.setAttribute('aria-label', fill(t));
+  }
+  for (const el of document.querySelectorAll('[data-ph]')) el.placeholder = fill(el.dataset.ph);
+  for (const el of document.querySelectorAll('[data-only]')) if (el.dataset.only !== CITY.id) el.remove();
+  const other = document.getElementById('otherCity'); other.href = CITY.other.url + (CITY.lang === 'en' ? '?lang=en' : '?lang=es'); other.textContent = CITY.other.name;
+  const lb = document.getElementById('langBtn'), to = CITY.lang === 'en' ? 'es' : 'en';
+  lb.textContent = to.toUpperCase(); lb.lang = to; lb.setAttribute('aria-label', to === 'en' ? 'Read in English' : 'Leer en español');
+  lb.onclick = () => CITY.setLang(to);
   MSM.start();
   started.pulso = true; START.pulso.start(); MiMadrid.start();
   MiMadrid.attachSearch(document.getElementById('pulsoSearch'), (p) => { location.hash = '#mapa'; Mapa.focusPlace(p); });

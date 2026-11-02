@@ -6,7 +6,8 @@ window.Pulso = (() => {
   const cv = document.getElementById('pulsoCanvas');
   const ctx = cv.getContext('2d');
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const fmt = new Intl.NumberFormat('es', { useGrouping: 'always' });
+  const { fmt, L } = CITY, P0 = CITY.pulso;
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   const tipEl = document.getElementById('pulsoTip');
   const tickEl = document.getElementById('pulsoTicker');
   let W = 0, H = 0, dpr = 1, proj = null, base = null, baseT = null, raf = 0, shownBig = 0;
@@ -26,10 +27,10 @@ window.Pulso = (() => {
 
   function project() {
     const narrow = W < 720;
-    const kx = 111.32 * Math.cos(40.42 * Math.PI / 180), ky = 111.0;
-    const pxkm = narrow ? Math.min(W / 17, H / 24) : Math.min(W / 30, H / 19);
+    const kx = 111.32 * Math.cos(P0.lat * Math.PI / 180), ky = 111.0;
+    const pxkm = narrow ? Math.min(W / P0.wn, H / P0.hn) : Math.min(W / P0.w, H / P0.h);
     const cx = narrow ? W * .5 : W * .62, cy = narrow ? H * .36 : H * .5;
-    proj = (lat, lon) => [cx + (lon + 3.695) * kx * pxkm, cy - (lat - 40.425) * ky * pxkm];
+    proj = (lat, lon) => [cx + (lon - P0.lon) * kx * pxkm, cy - (lat - P0.lat) * ky * pxkm];
   }
   const P = (lat, lon) => view.apply(proj(lat, lon));
 
@@ -49,8 +50,9 @@ window.Pulso = (() => {
     g.lineCap = 'round'; g.lineJoin = 'round';
     const z = Math.sqrt(view.k);
     for (const l of state.graph.lines.values()) {
-      g.strokeStyle = l.color; g.globalAlpha = l.m === 'cercanias' ? .3 : .55; g.lineWidth = (l.m === 'cercanias' ? 1 : 1.8) * z;
-      g.setLineDash(l.m === 'cercanias' ? [1 * z, 4 * z] : []);
+      const thin = CITY.thin.includes(l.m);
+      g.strokeStyle = l.color; g.globalAlpha = thin ? .3 : .55; g.lineWidth = (thin ? 1 : 1.8) * z;
+      g.setLineDash(CITY.dashed.includes(l.m) ? [1 * z, 4 * z] : []);
       g.beginPath(); l.path.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
     }
     g.setLineDash([]);
@@ -73,10 +75,9 @@ window.Pulso = (() => {
   }
 
   // Trains: snap each report to its line's track, estimate speed from the last two reports, keep rolling.
-  function track(line) {
-    const L = state.graph?.lines;
-    const l = L && (L.get('cercanias:' + line) || L.get('cercanias:' + line.replace(/[ab]$/, '')));
-    if (!l) return null;
+  function track(lineId) {
+    const l = lineId && state.graph?.lines.get(lineId);
+    if (!l || l.path.length < 2) return null;
     if (!l._cum) { let s = 0; l._cum = l.path.map((p, i) => (i ? (s += KM(l.path[i - 1], p)) : 0)); }
     return l;
   }
@@ -183,8 +184,8 @@ window.Pulso = (() => {
     if (!near || nd > 40) { tipEl.hidden = true; return; }
     ctx.strokeStyle = C.hielo; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(near.x, near.y, 10, 0, 6.283); ctx.stroke();
     const [a, b] = near.kind === 'bike'
-      ? ['BiciMAD', `${near.b.name}: ${near.b.n} bicis, ${near.b.docks} anclajes libres`]
-      : [`Cercanías ${near.t.line}`, near.t.where];
+      ? [CITY.bike, L(`${near.b.name}: ${near.b.n} bicis, ${near.b.docks} anclajes libres`, `${near.b.name}: ${near.b.n} bikes, ${near.b.docks} free docks`)]
+      : [near.t.label, near.t.where];
     if (tipEl.dataset.k !== a + b) {
       tipEl.dataset.k = a + b;
       const t1 = document.createElement('div'); t1.className = 'd'; t1.textContent = a;
@@ -202,7 +203,7 @@ window.Pulso = (() => {
   function tick(kind, text, geo) {
     events.unshift({ kind, text, at: new Date(), ...(geo || {}) });
     if (events.length > 6) events.pop();
-    const time = (d) => d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+    const time = CITY.time;
     tickEl.replaceChildren(...events.map((e, i) => {
       const li = document.createElement('li'); li.className = e.kind + (i === 0 ? ' fresh' : '');
       const t = document.createElement('time'); t.textContent = time(e.at);
@@ -222,50 +223,54 @@ window.Pulso = (() => {
     const red = s.items.filter((i) => i.red);
     const lines = [...new Set(red.map((i) => i.b))];
     const p = document.getElementById('pulsoLine'); p.replaceChildren();
-    p.append('bicis esperando en Madrid ahora mismo. ');
-    if (!red.length) p.append('Metro y trenes sin cortes.');
+    p.append(L(`bicis esperando en ${CITY.name} ahora mismo. `, `bikes waiting across ${CITY.name} right now. `));
+    if (!red.length) p.append(L('Trenes sin cortes.', 'No lines closed.'));
     else {
       const first = red.find((i) => i.scope?.from) || red[0];
-      p.append(first.scope?.from ? `La ${first.b} está cortada entre ${first.scope.from} y ${first.scope.to}` : `La ${first.b} tiene un corte`);
-      p.append(lines.length > 1 ? `, y hay ${lines.length - 1} corte${lines.length > 2 ? 's' : ''} más.` : '.');
+      p.append(first.scope?.from ? L(`La ${first.b} está cortada entre ${first.scope.from} y ${first.scope.to}`, `${first.b} is closed between ${first.scope.from} and ${first.scope.to}`)
+        : L(`La ${first.b} tiene un corte`, `${first.b} has no service`));
+      const more = lines.length - 1;
+      p.append(more > 0 ? L(`, y hay ${more} corte${more > 1 ? 's' : ''} más.`, `, and ${more} more line${more > 1 ? 's' : ''} closed.`) : '.');
     }
     const cut = document.getElementById('pulsoCuts'); cut.firstElementChild.textContent = lines.length;
-    cut.lastChild.textContent = lines.length === 1 ? ' corte' : ' cortes';
+    cut.lastChild.textContent = lines.length === 1 ? L(' corte', ' closure') : L(' cortes', ' closures');
     const affected = new Set(s.items.map((i) => i.lineId).filter(Boolean));
-    const total = state.graph.lines.size;
-    document.getElementById('pulsoOk').textContent = `${total - affected.size} de ${total}`;
+    const total = [...state.graph.lines.values()].filter((l) => !l.dup).length;
+    document.getElementById('pulsoOk').textContent = L(`${total - affected.size} de ${total}`, `${total - affected.size} of ${total}`);
   }
 
   function when() {
     const ok = state.ok.trains || state.ok.bikes;
     document.getElementById('pulsoLive').classList.toggle('on', !!ok);
-    const d = new Date().toLocaleString('es', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-    document.getElementById('pulsoWhen').textContent = (ok ? 'En vivo · ' : 'Sin conexión · ') + d;
+    const d = new Date().toLocaleString(CITY.locale, { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: CITY.tz });
+    document.getElementById('pulsoWhen').textContent = (ok ? L('En vivo · ', 'Live · ') : L('Sin conexión · ', 'Offline · ')) + d;
   }
 
   function onTrains(list) {
     const now = performance.now(), seen = new Set();
     for (const x of list) {
       seen.add(x.id);
-      const stop = state.graph?.stops.get('cercanias:' + x.stop)?.n;
-      const where = stop ? (x.status === 'STOPPED_AT' ? `parado en ${stop}` : `llegando a ${stop}`) : 'en marcha';
-      const l = track(x.line);
+      const stop = x.stop;
+      const where = stop ? (x.status === 'STOPPED_AT' ? L(`parado en ${stop}`, `stopped at ${stop}`) : L(`llegando a ${stop}`, `arriving at ${stop}`)) : L('en marcha', 'on the move');
+      const l = track(x.lineId);
+      const gl = x.lineId && state.graph?.lines.get(x.lineId);
+      const label = gl ? `${CITY.mode(gl.m)} ${gl.b}` : x.line;
       const old = trains.get(x.id);
       const s = l ? snap(l, x.lat, x.lon) : null;
       const cur = old?.cur || [x.lat, x.lon];
-      const color = l ? l.color : C.tren;
+      const color = gl ? gl.color : C.tren;
       const t = old || { trail: [], id: x.id };
-      Object.assign(t, { line: x.line, color, where, l: s != null ? l : null, at: now, from: cur, to: [x.lat, x.lon], cur });
+      Object.assign(t, { line: x.line, label, color, where, l: s != null ? l : null, at: now, from: cur, to: [x.lat, x.lon], cur });
       if (s != null) {
         const s0 = old?.l === l ? (old.dispS ?? s) : s;
         const dt = old && old.repAt ? (Date.now() - old.repAt) / 1000 : 0;
         let v = old?.l === l && old.s != null && dt > 5 ? (s - old.s) / (dt * 1000) : 0;
-        // v is km per ms; Cercanías tops out near 120 km/h, about 0.000033 km/ms.
+        // v is km per ms; commuter rail and BART top out near 120 km/h, about 0.000033 km/ms.
         v = x.status === 'STOPPED_AT' ? 0 : Math.sign(v) * Math.min(Math.abs(v), .000035);
         Object.assign(t, { s0, s, v });
       } else Object.assign(t, { s: null });
       t.repAt = Date.now();
-      if (old && old.stopName !== stop && stop && x.status === 'STOPPED_AT') tick('train', `${x.line} parado en ${stop}`, { trainId: x.id, line: x.line, stop });
+      if (old && old.stopName !== stop && stop && x.status === 'STOPPED_AT') tick('train', L(`${label} parado en ${stop}`, `${label} stopped at ${stop}`), { trainId: x.id, line: x.line, label, stop });
       t.stopName = stop;
       trains.set(x.id, t);
     }
@@ -289,8 +294,8 @@ window.Pulso = (() => {
       lastBikes.set(s.id, s.n);
     }
     if (ripples.length > 400) ripples.splice(0, ripples.length - 400);
-    if (gained && gained.d >= 2) tick('bike', `${gained.s.name} +${gained.d} bicis`, { lat: gained.s.lat, lon: gained.s.lon, station: gained.s.id, d: gained.d });
-    if (lost && lost.d <= -2) tick('bikeout', `${lost.s.name} ${lost.d} bicis`, { lat: lost.s.lat, lon: lost.s.lon, station: lost.s.id, d: lost.d });
+    if (gained && gained.d >= 2) tick('bike', L(`${gained.s.name} +${gained.d} bicis`, `${gained.s.name} +${gained.d} bikes`), { lat: gained.s.lat, lon: gained.s.lon, station: gained.s.id, d: gained.d });
+    if (lost && lost.d <= -2) tick('bikeout', L(`${lost.s.name} ${lost.d} bicis`, `${lost.s.name} ${lost.d} bikes`), { lat: lost.s.lat, lon: lost.s.lon, station: lost.s.id, d: lost.d });
     bake(); kick(); countTo(document.getElementById('pulsoBig'), b.free);
   }
 
@@ -300,13 +305,12 @@ window.Pulso = (() => {
   const forceNight = new URLSearchParams(location.search).has('noche');
   // ?pantalla: start straight in Modo pantalla with no exit button (the macOS screen saver loads this)
   const kiosk = new URLSearchParams(location.search).has('pantalla');
-  function madridHour() { const p = new Intl.DateTimeFormat('es', { hour: 'numeric', minute: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Madrid' }).formatToParts(new Date()); const g = (t) => +p.find((x) => x.type === t).value; return g('hour') + g('minute') / 60; }
   function nightness() {
     if (forceNight) return 1;
-    const h = madridHour();
-    if (h >= 1.5 && h < 5.5) return 1;
-    if (h >= 1 && h < 1.5) return (h - 1) / .5;
-    if (h >= 5.5 && h < 6.25) return 1 - (h - 5.5) / .75;
+    const h = CITY.hour(), { from, to } = CITY.night;
+    if (h >= from && h < to) return 1;
+    if (h >= from - .5 && h < from) return (h - (from - .5)) / .5;
+    if (h >= to && h < to + .75) return 1 - (h - to) / .75;
     return 0;
   }
   let night = 0, wasNight = false;
@@ -344,47 +348,48 @@ window.Pulso = (() => {
       const k = Math.max(1.6, Math.min(6, .42 * W / Math.max(30, x1 - x0), .42 * H / Math.max(30, y1 - y0)));
       const mid = it.pts[Math.floor(it.pts.length / 2)];
       fly(mid[0], mid[1], k, 4200);
-      caption('Corte en vivo', `${it.b} cortada entre ${it.scope.from} y ${it.scope.to}`, clip(it.title, 130), C.rojo);
+      caption(L('Corte en vivo', 'Closed now'), L(`${it.b} cortada entre ${it.scope.from} y ${it.scope.to}`, `${it.b} closed between ${it.scope.from} and ${it.scope.to}`), clip(it.title, 130), C.rojo);
     } });
     const tr = events.find((e) => e.kind === 'train' && trains.has(e.trainId) && fresh('tr' + e.trainId + e.stop, 20));
     if (tr) list.push({ key: 'tr' + tr.trainId + tr.stop, run: () => {
       const t = trains.get(tr.trainId); fly(t.cur[0], t.cur[1], 4.5, 4200);
-      caption('Cercanías ' + tr.line, `Parado en ${tr.stop}`, `${trains.size} trenes rodando por Madrid ahora mismo`, t.color);
+      caption(tr.label || tr.line, L(`Parado en ${tr.stop}`, `Stopped at ${tr.stop}`), L(`${trains.size} trenes rodando por ${CITY.name} ahora mismo`, `${trains.size} trains running across ${CITY.name} right now`), t.color);
     } });
     const bk = events.find((e) => (e.kind === 'bike' || e.kind === 'bikeout') && fresh('bk' + e.station + e.at, 30));
     if (bk) list.push({ key: 'bk' + bk.station + bk.at, run: () => {
       const st = state.bikes?.list.find((b) => b.id === bk.station);
       fly(bk.lat, bk.lon, 5, 4200);
-      caption('BiciMAD', `${st?.name ?? 'Estación'} · ${bk.d > 0 ? '+' : ''}${bk.d} bicis`, st ? `${st.n} bicis y ${st.docks} anclajes libres ahora` : '', bk.d > 0 ? C.verde : C.ambar);
+      caption(CITY.bike, `${st?.name ?? L('Estación', 'Station')} · ${bk.d > 0 ? '+' : ''}${bk.d} ${L('bicis', 'bikes')}`, st ? L(`${st.n} bicis y ${st.docks} anclajes libres ahora`, `${st.n} bikes and ${st.docks} free docks now`) : '', bk.d > 0 ? C.verde : C.ambar);
     } });
     for (const pl of window.MiMadrid?.places?.() ?? []) if (fresh('pl' + pl.id, 8)) list.push({ key: 'pl' + pl.id, run: () => {
       const b = window.MiMadrid.nearestBike(pl);
       fly(pl.lat, pl.lon, 5.5, 4200);
-      const bikeLine = b ? `${b.docks} anclajes libres · a ${Math.round(b.m)} m` : '';
-      caption('Mi Madrid · ' + pl.label, b ? `${b.n} bicis en ${b.name}` : pl.name, bikeLine, b ? (b.n === 0 ? C.rojo : b.n < 4 ? C.ambar : C.verde) : C.paper);
+      const bikeLine = b ? L(`${b.docks} anclajes libres · a ${Math.round(b.m)} m`, `${b.docks} free docks · ${Math.round(b.m)} m away`) : '';
+      const you = L('Tu sitio · ', 'Your place · ') + pl.label;
+      caption(you, b ? L(`${b.n} bicis en ${b.name}`, `${b.n} bikes at ${b.name}`) : pl.name, bikeLine, b ? (b.n === 0 ? C.rojo : b.n < 4 ? C.ambar : C.verde) : C.paper);
       window.MiMadrid.buses?.(pl).then((list) => {
         const next = (list || []).filter((v) => v.secs != null).sort((a, z) => a.secs - z.secs)[0];
         if (!next || !D.on) return;
         const stop = state.graph?.stops.get('emt:' + next.stop)?.n;
-        const eta = next.secs < 60 ? 'llegando' : `en ${Math.round(next.secs / 60)} min`;
-        setTimeout(() => { if (D.on) caption('Mi Madrid · ' + pl.label, `Tu ${next.line} ${eta}`, `Hacia ${next.dest.toLowerCase()}${stop ? ', parada ' + stop : ''} · ${b ? b.n + ' bicis al lado' : ''}`, C.hielo); }, 5200);
+        const eta = next.secs < 60 ? L('llegando', 'arriving') : L(`en ${Math.round(next.secs / 60)} min`, `in ${Math.round(next.secs / 60)} min`);
+        setTimeout(() => { if (D.on) caption(you, L(`Tu ${next.line} ${eta}`, `Your ${next.line} ${eta}`), L(`Hacia ${next.dest.toLowerCase()}${stop ? ', parada ' + stop : ''} · ${b ? b.n + ' bicis al lado' : ''}`, `To ${next.dest.toLowerCase()}${stop ? ', stop ' + stop : ''} · ${b ? b.n + ' bikes next to it' : ''}`), C.hielo); }, 5200);
       });
     } });
     D.n++;
     if (night > .5) {
       return () => {
         home(6000);
-        const t = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-        caption('Madrid duerme', t, `El Metro vuelve a las 6:00. ${fmt.format(state.bikes?.free ?? 0)} bicis esperando${trains.size ? ` y ${trains.size} trenes todavía rodando` : ''}.`, C.hielo);
+        const free = fmt.format(state.bikes?.free ?? 0);
+        caption(L(`${cap(CITY.name)} duerme`, `${cap(CITY.name)} sleeps`), CITY.time(), `${CITY.night.back}. ` + L(`${free} bicis esperando${trains.size ? ` y ${trains.size} trenes todavía rodando` : ''}.`, `${free} bikes waiting${trains.size ? ` and ${trains.size} trains still running` : ''}.`), C.hielo);
       };
     }
     if (wasNight && night < .5 && trains.size) {
       wasNight = false;
       const first = [...trains.values()][0];
-      return () => { fly(first.cur[0], first.cur[1], 4, 5000); caption('Madrid despierta', `Primer tren: ${first.line}`, first.where.charAt(0).toUpperCase() + first.where.slice(1), C.tren); };
+      return () => { fly(first.cur[0], first.cur[1], 4, 5000); caption(L(`${cap(CITY.name)} despierta`, `${cap(CITY.name)} wakes up`), L(`Primer tren: ${first.label}`, `First train: ${first.label}`), cap(first.where), C.tren); };
     }
     if (D.n % 2 === 1 || !list.length) {
-      return () => { home(3600); caption('Madrid se mueve', `${fmt.format(state.bikes?.free ?? 0)} bicis libres`, `${trains.size} trenes de Cercanías rodando · ${new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })}`, C.verde); };
+      return () => { home(3600); caption(CITY.title, L(`${fmt.format(state.bikes?.free ?? 0)} bicis libres`, `${fmt.format(state.bikes?.free ?? 0)} free bikes`), L(`${trains.size} trenes rodando · ${CITY.time()}`, `${trains.size} trains running · ${CITY.time()}`), C.verde); };
     }
     const pick = list[0]; mark(pick.key); return pick.run;
   }
@@ -418,7 +423,7 @@ window.Pulso = (() => {
     document.getElementById('dirExit').addEventListener('click', exitScreen);
     if (kiosk) { document.body.classList.add('kiosk'); setTimeout(enterScreen, 1200); }
     new ResizeObserver(() => { size(); kick(); }).observe(cv);
-    const zoom = zoomB = d3.zoom().scaleExtent([1, 8]).on('zoom', (e) => { view = e.transform; pointer = null; kick(); })
+    const zoom = zoomB = d3.zoom().scaleExtent([P0.min, 8]).on('zoom', (e) => { view = e.transform; pointer = null; kick(); })
       .on('end', () => { bake(); kick(); });
     d3.select(cv).call(zoom).on('dblclick.zoom', null);
     document.getElementById('pulsoReset').onclick = () => d3.select(cv).transition().duration(still ? 0 : 700).call(zoom.transform, d3.zoomIdentity);
@@ -429,7 +434,7 @@ window.Pulso = (() => {
     on('bikes', onBikes);
     on('status', (s) => {
       const red = s.items.filter((i) => i.red && i.scope?.from);
-      for (const i of red) if (!tick.seen?.has(i.b)) { (tick.seen = tick.seen || new Set()).add(i.b); tick('cut', `${i.b} cortada ${i.scope.from} a ${i.scope.to}`); }
+      for (const i of red) if (!tick.seen?.has(i.b)) { (tick.seen = tick.seen || new Set()).add(i.b); tick('cut', L(`${i.b} cortada ${i.scope.from} a ${i.scope.to}`, `${i.b} closed ${i.scope.from} to ${i.scope.to}`)); }
       words(); kick();
     });
     on('trains', (t) => onTrains(t.list));

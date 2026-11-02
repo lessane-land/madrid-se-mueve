@@ -7,12 +7,12 @@ const SRC = {
 const COL = { hielo: '#8FD3FF', paper: '#F5F5F0', mute: '#8A8A82', line: '#2A2A28', verde: '#5BE38A', ambar: '#FFB547', rojo: '#FF5A5F', ink: '#0A0A0A' };
 const KIND = { gratis: COL.hielo, evento: COL.hielo, huelga: COL.ambar, corte: COL.rojo };
 const $ = (id) => document.getElementById(id);
-const fmt = new Intl.NumberFormat('es', { useGrouping: 'always' });
+const fmt = CITY.fmt, H = CITY.L, LOC = CITY.locale;
 const f = {
-  n: (v) => fmt.format(v), c: (v) => new Intl.NumberFormat('es', { notation: 'compact', maximumFractionDigits: 1 }).format(v),
+  n: (v) => fmt.format(v), c: (v) => new Intl.NumberFormat(LOC, { notation: 'compact', maximumFractionDigits: 1 }).format(v),
   p: (v) => (v > 0 ? '+' : '') + Math.round(v * 100) + ' %',
-  d: (s) => new Date(s + 'T00:00:00Z').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }),
-  m: (s) => new Date(s + '-01T00:00:00Z').toLocaleDateString('es', { month: 'short', year: 'numeric', timeZone: 'UTC' }),
+  d: (s) => new Date(s + 'T00:00:00Z').toLocaleDateString(LOC, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }),
+  m: (s) => new Date(s + '-01T00:00:00Z').toLocaleDateString(LOC, { month: 'short', year: 'numeric', timeZone: 'UTC' }),
 };
 const P = (s) => new Date(s + 'T00:00:00Z');
 const median = (a) => { const s = a.slice().sort((x, y) => x - y), m = s.length >> 1; return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : null; };
@@ -68,14 +68,14 @@ function daily(el, rows, eventos) {
     svg.append('rect').attr('x', a).attr('y', 8).attr('width', Math.max(3, b - a)).attr('height', H - 32).attr('fill', KIND[e.kind] || COL.hielo).attr('opacity', .28);
   }
   svg.append('g').attr('transform', `translate(${ml - 4},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(f.c).tickSize(-(W - ml - 4))).call(axisStyle).call((g) => g.select('.domain').remove());
-  svg.append('g').attr('transform', `translate(0,${H - 24})`).call(d3.axisBottom(x).ticks(Math.max(3, Math.floor(W / 130))).tickFormat((d) => d.toLocaleDateString('es', { month: 'short', year: '2-digit', timeZone: 'UTC' }))).call(axisStyle);
+  svg.append('g').attr('transform', `translate(0,${H - 24})`).call(d3.axisBottom(x).ticks(Math.max(3, Math.floor(W / 130))).tickFormat((d) => d.toLocaleDateString(LOC, { month: 'short', year: '2-digit', timeZone: 'UTC' }))).call(axisStyle);
   svg.append('g').selectAll('circle').data(rows).join('circle').attr('cx', (r) => x(P(r.day))).attr('cy', (r) => y(r.trips)).attr('r', 1.4).attr('fill', COL.mute).attr('opacity', .55);
   svg.append('path').datum(rows).attr('fill', 'none').attr('stroke', COL.paper).attr('stroke-width', 2).attr('stroke-linejoin', 'round').attr('d', d3.line((r) => x(P(r.day)), (r) => y(r.avg7)));
   const dot = svg.append('circle').attr('r', 4).attr('fill', COL.hielo).attr('opacity', 0), t = tipFor(el), bis = d3.bisector((r) => P(r.day)).center;
   svg.on('pointermove', (ev) => {
     const [mx, my] = d3.pointer(ev), r = rows[bis(rows, x.invert(mx))]; if (!r) return;
     dot.attr('cx', x(P(r.day))).attr('cy', y(r.trips)).attr('opacity', 1);
-    const s = el.clientWidth / W, lines = [f.d(r.day), `${f.n(r.trips)} viajes`, r.normal ? `normal ${f.n(r.normal)}, ${f.p(r.vs)}` : 'sin normal', r.rain != null ? `lluvia ${r.rain} mm` : 'lluvia sin dato'];
+    const s = el.clientWidth / W, lines = [f.d(r.day), H(`${f.n(r.trips)} viajes`, `${f.n(r.trips)} trips`), r.normal ? `normal ${f.n(r.normal)}, ${f.p(r.vs)}` : H('sin normal', 'no baseline'), r.rain != null ? H(`lluvia ${r.rain} mm`, `rain ${r.rain} mm`) : H('lluvia sin dato', 'no rain data')];
     if (r.event) lines.push(r.event);
     show(el, t, x(P(r.day)) * s, my * s, lines);
   }).on('pointerleave', () => { t.hidden = true; dot.attr('opacity', 0); });
@@ -115,15 +115,15 @@ function vbars(el, data, key, val, fk, fv, line) {
 
 function episodes(eps) {
   const by = d3.rollup(eps, (v) => v.length, (e) => e.mode);
-  const names = { metro: 'Metro', cercanias: 'Cercanías', emt: 'EMT', metro_ligero: 'Metro Ligero', interurbanos: 'Interurbanos' };
+  const names = { metro: 'Metro', cercanias: CITY.mode('cercanias'), emt: 'EMT', metro_ligero: CITY.mode('metro_ligero'), interurbanos: H('Interurbanos', 'Intercity buses') };
   $('epCounts').replaceChildren(...[...by].sort((a, b) => b[1] - a[1]).map(([m, n]) => { const s = document.createElement('span'); const b = document.createElement('b'); b.textContent = fmt.format(n); s.append(b, names[m] || m); return s; }));
   const body = $('epBody'); body.replaceChildren();
   for (const e of eps.slice(0, 150)) {
     const tr = document.createElement('tr');
-    const when = new Date(e.started).toLocaleString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+    const when = new Date(e.started).toLocaleString(LOC, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
     const mins = ((e.ended ? Date.parse(e.ended) : Date.now()) - Date.parse(e.started)) / 6e4;
-    const dur = e.ended ? (mins < 90 ? `${Math.round(mins)} min` : mins < 2880 ? `${Math.round(mins / 60)} h` : `${Math.round(mins / 1440)} días`) : 'sigue';
-    const cells = [when, null, e.from_stop && e.to_stop ? `${e.from_stop} a ${e.to_stop}` : '', dur, MSM.cleanTitle(e.title)];
+    const dur = e.ended ? (mins < 90 ? `${Math.round(mins)} min` : mins < 2880 ? `${Math.round(mins / 60)} h` : H(`${Math.round(mins / 1440)} días`, `${Math.round(mins / 1440)} days`)) : H('sigue', 'ongoing');
+    const cells = [when, null, e.from_stop && e.to_stop ? `${e.from_stop} - ${e.to_stop}` : '', dur, MSM.cleanTitle(e.title)];
     cells.forEach((c, i) => {
       const td = document.createElement('td');
       if (i === 1) { const p = document.createElement('span'); p.className = 'pill'; p.style.background = /rojo/i.test(e.severity) ? COL.rojo : COL.ambar; p.textContent = e.line.split(':')[1]; td.append(p); }
@@ -146,27 +146,28 @@ async function run() {
   const top = d3.greatest(dias, (r) => r.trips);
   const u = users.at(-1), uPrev = users.find((r) => r.month === String(+u.month.slice(0, 4) - 1) + u.month.slice(4));
   const wd = dias.filter((r) => { const g = P(r.day).getUTCDay(); return g > 0 && g < 6 && !r.kind && r.normal && r.rain != null; });
-  const B = [['Seco', 0, .5], ['Llovizna, hasta 2 mm', .5, 2], ['Lluvia, 2 a 10 mm', 2, 10], ['Lluvia fuerte, más de 10 mm', 10, 1e9]]
+  const B = [[H('Seco', 'Dry'), 0, .5], [H('Llovizna, hasta 2 mm', 'Drizzle, up to 2 mm'), .5, 2], [H('Lluvia, 2 a 10 mm', 'Rain, 2 to 10 mm'), 2, 10], [H('Lluvia fuerte, más de 10 mm', 'Heavy rain, over 10 mm'), 10, 1e9]]
     .map(([label, lo, hi]) => { const v = wd.filter((r) => r.rain >= lo && r.rain < hi).map((r) => r.vs); return { label, n: v.length, vs: median(v) }; });
   const impact = eventos.map((e) => { const r = dias.filter((d) => d.day >= e.start && d.day <= e.end && d.normal); const t = d3.sum(r, (d) => d.trips), n = d3.sum(r, (d) => d.normal); return { ...e, t, n, vs: n ? t / n - 1 : null, rain: d3.mean(r, (d) => d.rain || 0) }; }).filter((e) => e.vs != null).sort((a, b) => b.vs - a.vs);
   const months = [...d3.rollup(dias, (v) => Math.round(d3.mean(v, (r) => r.trips)), (r) => r.day.slice(0, 7))].map(([m, v]) => ({ m, v }));
 
   const lead = $('hLead'); lead.replaceChildren();
   const b = (t) => { const e = document.createElement('b'); e.textContent = t; return e; };
-  lead.append('BiciMAD lleva ', b(f.n(ytd)), ` viajes en ${yr} hasta el ${f.d(last)}, `, b(f.p(chg)), ` frente al mismo tramo de ${+yr - 1}. Lo que más la dispara no es una huelga: es que sea gratis.`);
-  $('hk1').textContent = `Viajes en ${yr}, hasta el último día publicado`;
+  if (CITY.lang === 'en') lead.append('BiciMAD has logged ', b(f.n(ytd)), ` trips in ${yr} up to ${f.d(last)}, `, b(f.p(chg)), ` against the same stretch of ${+yr - 1}. What lifts it most is not a strike: it is riding for free.`);
+  else lead.append('BiciMAD lleva ', b(f.n(ytd)), ` viajes en ${yr} hasta el ${f.d(last)}, `, b(f.p(chg)), ` frente al mismo tramo de ${+yr - 1}. Lo que más la dispara no es una huelga: es que sea gratis.`);
+  $('hk1').textContent = H(`Viajes en ${yr}, hasta el último día publicado`, `Trips in ${yr}, up to the last published day`);
   $('hv1').textContent = f.c(ytd); $('hs1').textContent = `${f.p(chg)} frente a ${+yr - 1}`; $('hs1').className = 's ' + (chg >= 0 ? 'up' : 'down');
   $('hv2').textContent = f.n(top.trips); $('hs2').textContent = f.d(top.day) + (top.event ? ` · ${top.event}` : '');
   $('hv3').textContent = f.c(u.n); $('hs3').textContent = uPrev ? `${f.m(u.month)}, ${f.p(u.n / uPrev.n - 1)} en un año` : f.m(u.month); if (uPrev) $('hs3').className = 's ' + (u.n >= uPrev.n ? 'up' : 'down');
   $('hv4').textContent = f.p(B[3].vs);
-  $('hSrc').append(V.live ? ` Viajes leídos ahora de EMT, hasta el ${f.d(last)}.` : ' EMT no respondió: viajes de la copia guardada.');
+  $('hSrc').append(V.live ? H(` Viajes leídos ahora de EMT, hasta el ${f.d(last)}.`, ` Trips read live from EMT, up to ${f.d(last)}.`) : H(' EMT no respondió: viajes de la copia guardada.', ' EMT did not answer: trips from the saved copy.'));
 
   const draw = () => {
     daily($('cDaily'), dias, eventos);
-    hbars($('cEvents'), impact, (r) => r.label, (r) => r.vs, (r) => KIND[r.kind] || COL.hielo, (r) => [r.start === r.end ? f.d(r.start) : `${f.d(r.start)} a ${f.d(r.end)}`, `${f.n(r.t)} viajes, normal ${f.n(r.n)}`, `${f.p(r.vs)} frente a lo normal`, `lluvia media ${d3.format('.1f')(r.rain)} mm`]);
-    hbars($('cRain'), B, (r) => r.label, (r) => r.vs, () => COL.hielo, (r) => [r.label, `${f.p(r.vs)} frente a lo normal`, `${r.n} días laborables`]);
-    vbars($('cMonths'), months, (r) => r.m, (r) => r.v, f.m, (v) => `${f.n(v)} viajes al día`, false);
-    vbars($('cUsers'), users, (r) => r.month, (r) => r.n, f.m, (v) => `${f.n(v)} usuarios activos`, true);
+    hbars($('cEvents'), impact, (r) => r.label, (r) => r.vs, (r) => KIND[r.kind] || COL.hielo, (r) => [r.start === r.end ? f.d(r.start) : `${f.d(r.start)} - ${f.d(r.end)}`, H(`${f.n(r.t)} viajes, normal ${f.n(r.n)}`, `${f.n(r.t)} trips, normal ${f.n(r.n)}`), H(`${f.p(r.vs)} frente a lo normal`, `${f.p(r.vs)} against normal`), H(`lluvia media ${d3.format('.1f')(r.rain)} mm`, `average rain ${d3.format('.1f')(r.rain)} mm`)]);
+    hbars($('cRain'), B, (r) => r.label, (r) => r.vs, () => COL.hielo, (r) => [r.label, H(`${f.p(r.vs)} frente a lo normal`, `${f.p(r.vs)} against normal`), H(`${r.n} días laborables`, `${r.n} weekdays`)]);
+    vbars($('cMonths'), months, (r) => r.m, (r) => r.v, f.m, (v) => H(`${f.n(v)} viajes al día`, `${f.n(v)} trips a day`), false);
+    vbars($('cUsers'), users, (r) => r.month, (r) => r.n, f.m, (v) => H(`${f.n(v)} usuarios activos`, `${f.n(v)} active users`), true);
   };
   draw();
   let w = innerWidth; addEventListener('resize', () => { if (Math.abs(innerWidth - w) > 40 && !document.getElementById('historia').hidden) { w = innerWidth; draw(); } }); window.__histDraw = draw;

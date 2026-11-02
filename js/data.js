@@ -4,16 +4,15 @@
   const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkaWF3dnphcmd1ZnZvaWxmeG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0NjE1ODIsImV4cCI6MjEwOTAzNzU4Mn0.sR6yDd1SDJ86lTG0rYiGSJD4fi1XVOpabB-_kHW6uXw';
   const CFG = {
     SUPA, ANON,
-    GRAPH: 'https://raw.githubusercontent.com/lessane-land/estado-madrid/main/graph-app.json',
-    GBFS: 'https://madrid.publicbikesystem.net/customer/gbfs/v2/en/',
+    GRAPH: CITY.graph,
     VIVO: SUPA + '/functions/v1/vivo',
     auth: { apikey: ANON, Authorization: 'Bearer ' + ANON },
   };
-  const RAIL = ['metro', 'metro_ligero', 'cercanias'];
+  const RAIL = CITY.rail, BAY = CITY.id === 'bay';
   const C = { ink: '#0A0A0A', panel: '#141413', line: '#2A2A28', paper: '#F5F5F0', mute: '#8A8A82', hielo: '#8FD3FF', verde: '#5BE38A', ambar: '#FFB547', rojo: '#FF5A5F', tren: '#FFD27A' };
 
   const subs = {};
-  const state = { graph: null, status: null, bikes: null, trains: null, episodes: null, ok: {} };
+  const state = { graph: null, status: null, bikes: null, trains: null, buses: null, episodes: null, ok: {} };
   const emit = (k) => (subs[k] || []).forEach((f) => { try { f(state[k], state); } catch (e) { console.error(e); } });
   const on = (k, f) => { (subs[k] = subs[k] || []).push(f); if (state[k]) f(state[k], state); };
 
@@ -36,13 +35,26 @@
   async function loadGraph() {
     const g = await (await fetch(CFG.GRAPH)).json();
     const stops = new Map(g.stops.map((s) => [s.i, s]));
-    const lines = new Map();
+    const lines = new Map(), canon = new Map(), boardKey = new Map();
     for (const l of g.lines) {
       if (!RAIL.includes(l.m)) continue;
+      if (BAY && /Bridge|^SC:Event/.test(l.i)) continue;   // bus bridges and stadium specials are not lines
       const path = l.sh ? decode(l.sh) : l.s.map((id) => stops.get(id)).filter(Boolean).map((s) => [s.la, s.lo]);
-      lines.set(l.i, { ...l, path, color: '#' + (l.c || '8A8A82') });
+      const color = l.c?.startsWith('#') ? l.c : '#' + (l.c || '8A8A82');
+      const line = { ...l, path, color };
+      // BART publishes each direction as its own route (Red-N, Red-S): one line on the board and in status.
+      if (BAY) {
+        line.b = l.b.replace(/-[NS]$/, '');
+        if (line.n && line.n === line.n.toUpperCase()) line.n = line.n.toLowerCase().replace(/(^|[\s(/-])(\w)/g, (m, p, c) => p + c.toUpperCase());
+        const k = l.a + ':' + line.b;
+        if (boardKey.has(k)) line.dup = true; else boardKey.set(k, l.i);
+        canon.set(l.i, boardKey.get(k));
+      } else canon.set(l.i, l.i);
+      lines.set(l.i, line);
     }
-    state.graph = { stops, lines, emt: g.stops.filter((s) => s.m === 'emt'), railStops: g.stops.filter((s) => s.m === 'metro' || s.m === 'metro_ligero') };
+    const routes = new Map((g.routes ?? []).map((r) => [r.i, r]));
+    state.graph = { stops, lines, canon, routes, agencies: g.agencies, emt: g.stops.filter((s) => s.m === 'emt'),
+      railStops: BAY ? g.stops : g.stops.filter((s) => s.m === 'metro' || s.m === 'metro_ligero') };
     emit('graph');
   }
 
@@ -51,7 +63,30 @@
     return L.get(`${mode}:${b}`) || [...L.values()].find((x) => x.m === mode && x.b.startsWith(b));
   }
 
+  // A 511 vehicle or alert names its route; the graph keys lines by 511 route id, sometimes without the agency prefix.
+  const bayLine = (a, r) => state.graph?.lines.get(r) || state.graph?.lines.get(`${a}:${r}`) || null;
+
+  async function loadBayStatus() {
+    const r = await fetch(CFG.VIVO + '?city=bay&what=alerts', { headers: CFG.auth });
+    if (!r.ok) throw new Error('vivo ' + r.status);
+    const d = await r.json(), now = Date.now() / 1000, items = [], seen = new Set();
+    for (const a of d.alerts ?? []) {
+      if (a.from && a.from > now) continue;
+      if (a.until && a.until < now) continue;
+      const red = a.effect === 1;   // NO_SERVICE
+      for (const e of a.on ?? []) {
+        const l = e.r && bayLine(e.a, e.r); if (!l) continue;
+        const id = state.graph.canon.get(l.i), key = a.id + id;
+        if (seen.has(key)) continue; seen.add(key);
+        items.push({ mode: l.m, b: l.b, lineId: id, red, color: red ? C.rojo : C.ambar, scope: null, title: a.title || a.text, pts: l.path, partial: false });
+      }
+    }
+    state.status = { generated: new Date(d.at).toISOString(), items };
+    emit('status');
+  }
+
   async function loadStatus() {
+    if (BAY) return loadBayStatus();
     const r = await fetch(`${SUPA}/rest/v1/estado?id=eq.1&select=generated,levels,incidents`, { headers: CFG.auth });
     const [row] = await r.json();
     const now = Date.now();
@@ -67,7 +102,7 @@
           const a = seq.findIndex((s) => norm(s.n).includes(norm(i.scope.from))), z = seq.findIndex((s) => norm(s.n).includes(norm(i.scope.to)));
           if (a >= 0 && z >= 0) pts = seq.slice(Math.min(a, z), Math.max(a, z) + 1).map((s) => [s.la, s.lo]);
         }
-        items.push({ mode: i.mode, b, lineId: l?.i, red, color: red ? C.rojo : C.ambar, scope: i.scope, title: cleanTitle(i.title || i.text), pts: pts || l?.path || null, partial: !!pts });
+        items.push({ mode: i.mode, b, lineId: l ? state.graph.canon.get(l.i) : undefined, red, color: red ? C.rojo : C.ambar, scope: i.scope, title: cleanTitle(i.title || i.text), pts: pts || l?.path || null, partial: !!pts });
       }
     }
     state.status = { generated: row?.generated, items };
@@ -76,26 +111,53 @@
 
   async function loadBikes() {
     if (!state._bikeInfo) {
-      const info = await (await fetch(CFG.GBFS + 'station_information')).json();
+      const info = await (await fetch(CITY.gbfs('station_information'))).json();
       state._bikeInfo = new Map(info.data.stations.map((s) => [s.station_id, s]));
     }
-    const st = await (await fetch(CFG.GBFS + 'station_status')).json();
+    const st = await (await fetch(CITY.gbfs('station_status'))).json();
     const list = [];
     for (const s of st.data.stations) {
       const i = state._bikeInfo.get(s.station_id); if (!i) continue;
-      const ok = s.is_renting && s.status === 'IN_SERVICE';
+      const ok = !!s.is_renting && (s.status ? s.status === 'IN_SERVICE' : s.is_installed !== 0);
       list.push({ id: s.station_id, name: i.name.replace(/^\d+\s*-\s*/, ''), lat: i.lat, lon: i.lon, n: s.num_bikes_available, docks: s.num_docks_available, ok });
     }
     state.bikes = { list, free: list.reduce((a, b) => a + (b.ok ? b.n : 0), 0), at: Date.now() };
     emit('bikes');
   }
 
+  // Trains: {id, line (badge), lineId (canonical), lat, lon, status, stop (name or null)}.
   async function loadTrains() {
+    if (BAY) return loadBayVehicles();
     const r = await fetch(CFG.VIVO + '?what=trains', { headers: CFG.auth });
     if (!r.ok) throw new Error('vivo ' + r.status);
     const d = await r.json();
-    state.trains = { list: d.trains, at: d.at };
+    const list = d.trains.map((t) => {
+      const l = state.graph && (state.graph.lines.get('cercanias:' + t.line) || state.graph.lines.get('cercanias:' + t.line.replace(/[ab]$/, '')));
+      return { ...t, lineId: l?.i ?? null, stop: state.graph?.stops.get('cercanias:' + t.stop)?.n ?? null };
+    });
+    state.trains = { list, at: d.at };
     emit('trains');
+  }
+
+  // The Bay: one 511 feed with every vehicle. Rail, tram, cable car and ferry become trains; the rest are buses.
+  const STATUS = { 0: 'INCOMING_AT', 1: 'STOPPED_AT', 2: 'IN_TRANSIT_TO' };
+  async function loadBayVehicles() {
+    const r = await fetch(CFG.VIVO + '?city=bay&what=vehicles', { headers: CFG.auth });
+    if (!r.ok) throw new Error('vivo ' + r.status);
+    const d = await r.json(), trains = [], buses = [];
+    for (const v of d.vehicles ?? []) {
+      const l = bayLine(v.a, v.r);
+      if (l) {
+        const stop = state.graph.stops.get(v.s) || state.graph.stops.get(`${v.a}:${v.s}`);
+        trains.push({ id: v.a + v.id, line: l.b, lineId: l.i, lat: v.lat, lon: v.lon, status: STATUS[v.st] ?? '', stop: stop?.n ?? null });
+      } else {
+        const rt = state.graph?.routes.get(v.r) || state.graph?.routes.get(`${v.a}:${v.r}`);
+        buses.push({ bus: v.a + v.id, line: rt?.b || v.r.split(':').pop() || '?', dest: rt?.n || '', color: rt?.c || C.hielo, op: state.graph?.agencies?.[v.a] || v.a, lat: v.lat, lon: v.lon, secs: null });
+      }
+    }
+    state.trains = { list: trains, at: d.at };
+    state.buses = { list: buses, at: d.at };
+    emit('trains'); emit('buses');
   }
 
   async function loadEpisodes() {
@@ -116,11 +178,11 @@
 
   async function start() {
     await safe('graph', loadGraph);
-    await Promise.all([safe('status', loadStatus), safe('bikes', loadBikes), safe('trains', loadTrains), safe('episodes', loadEpisodes)]);
-    every(15000, 'trains', loadTrains);
+    await Promise.all([safe('status', loadStatus), safe('bikes', loadBikes), safe('trains', loadTrains), CITY.episodes && safe('episodes', loadEpisodes)]);
+    every(BAY ? 60000 : 15000, 'trains', loadTrains);
     every(30000, 'bikes', loadBikes);
-    every(120000, 'status', loadStatus);
-    every(600000, 'episodes', loadEpisodes);
+    every(BAY ? 300000 : 120000, 'status', loadStatus);
+    if (CITY.episodes) every(600000, 'episodes', loadEpisodes);
   }
 
   window.MSM = { CFG, C, state, on, start, busesNear, decode, norm, cleanTitle, lineFor };
