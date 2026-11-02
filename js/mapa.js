@@ -310,7 +310,7 @@ window.Mapa = (() => {
     const shared = new Shared({ pane: 'bikes' }), paneRenderer = map._getPaneRenderer.bind(map);
     map._getPaneRenderer = (name) => (name in RANK ? shared : paneRenderer(name));
     layers = { metro: L.layerGroup().addTo(map), trains: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), bikes: L.layerGroup().addTo(map) };
-    if (CITY.id === 'bay') layers.roads = L.layerGroup().addTo(map);
+    if (CITY.id === 'bay') layers.roads = L.layerGroup();   // off by default: toggle Roads to show closures and tolls
     alerts = L.layerGroup().addTo(map); focusLayer = L.layerGroup().addTo(map); savedLayer = L.layerGroup().addTo(map);
     // Extra layers (planes, ships, quakes, air, cars) get their own toggles, before the screen mode button.
     window.Extras?.attachMap(map, (key, label, color, on, group) => {
