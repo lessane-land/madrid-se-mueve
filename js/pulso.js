@@ -51,15 +51,15 @@ window.Pulso = (() => {
     g.lineCap = 'round'; g.lineJoin = 'round';
     const z = Math.sqrt(view.k);
     if (coast) {
-      // The water as a faint field of dots, the land left dark, and a hairline where they meet.
+      // The water as a faint field of dots and the land left dark: the shore is where the dots stop.
       const shore = () => { g.beginPath(); for (const r of coast) r.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
       g.save();
       shore(); g.rect(-20, -20, W + 40, H + 40); g.clip('evenodd');
-      g.fillStyle = C.hielo; g.globalAlpha = .2;
-      const step = 7, d = 1.4;
+      g.fillStyle = C.hielo; g.globalAlpha = .26;
+      const step = 6, d = 1.4;
       for (let y = 3; y < H; y += step) for (let x = (y / step) % 2 ? 3 : 6.5; x < W; x += step) g.fillRect(x, y, d, d);
       g.restore();
-      shore(); g.strokeStyle = C.hielo; g.globalAlpha = .4; g.lineWidth = 1.2; g.stroke(); g.globalAlpha = 1;
+      g.globalAlpha = 1;
     }
     for (const l of state.graph.lines.values()) {
       const thin = CITY.thin.includes(l.m);

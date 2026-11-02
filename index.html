@@ -22,8 +22,8 @@
 <meta property="og:locale" content="es_ES">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/app.css?v=20261102g">
-<script src="js/city.js?v=20261102g"></script>
+<link rel="stylesheet" href="css/app.css?v=20261102i">
+<script src="js/city.js?v=20261102i"></script>
 </head>
 <body>
 <header class="bar">
@@ -65,7 +65,7 @@
     <aside class="pulso-side">
       <div class="eyebrow" data-en="Just happened">Acaba de pasar</div>
       <ol class="ticker" id="pulsoTicker" aria-live="polite"><li class="wait"><span data-en="Waiting for the first live change.">Esperando el primer cambio en vivo.</span></li></ol>
-      <div class="pulso-tools"><span data-en="Drag, zoom and hover">Arrastra, acerca y pasa por encima</span><button type="button" id="pulsoReset" data-es="Ver todo {city}" data-en="See all of {city}">Ver todo Madrid</button></div>
+      <div class="pulso-tools"><span data-en="Drag, zoom and hover">Arrastra, acerca y pasa por encima</span><button type="button" id="pulsoReset" data-es="{seeAll}" data-en="See all of {city}">Ver todo Madrid</button></div>
     </aside>
     <div class="director" aria-live="polite">
       <div class="dir-caption" id="dirCaption"><div class="k"></div><div class="t"></div><div class="s"></div></div>
@@ -172,12 +172,12 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="js/data.js?v=20261102g"></script>
-<script src="js/pulso.js?v=20261102g"></script>
-<script src="js/lineas.js?v=20261102g"></script>
-<script src="js/mimadrid.js?v=20261102g"></script>
-<script src="js/mapa.js?v=20261102g"></script>
-<script src="js/historia.js?v=20261102g"></script>
+<script src="js/data.js?v=20261102i"></script>
+<script src="js/pulso.js?v=20261102i"></script>
+<script src="js/lineas.js?v=20261102i"></script>
+<script src="js/mimadrid.js?v=20261102i"></script>
+<script src="js/mapa.js?v=20261102i"></script>
+<script src="js/historia.js?v=20261102i"></script>
 <script>
 // Router: one view at a time, on the hash. Views start lazily the first time they are shown.
 (() => {
@@ -196,6 +196,7 @@
   // Language and city: swap the static text, then let the views write theirs.
   const T = CITY.L, cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   const tokens = { title: CITY.title, city: CITY.name, City: cap(CITY.name), bike: CITY.bike, site: CITY.site, search: CITY.search, sourceNote: CITY.sourceNote,
+    seeAll: CITY.id === 'bay' ? 'Ver toda la Bahía' : 'Ver todo Madrid',
     railLayer: CITY.id === 'bay' ? T('Líneas', 'Lines') : 'Metro',
     busHint: CITY.busStops ? T('Acércate a una calle para ver los buses que llegan a sus paradas.', 'Zoom into a street to see the buses arriving at its stops.') : T('Acércate para ver todos los buses en marcha.', 'Zoom in to see every bus on the move.'),
     boardIntro: CITY.id === 'bay' ? T('Cada línea de BART, Muni Metro, cable car, tren regional y ferry: cómo está ahora y cuántos trenes ruedan. Toca una para verla en el mapa.', 'Every BART, Muni Metro, cable car, regional rail and ferry line: how it is doing now and how many trains are running. Tap one to see it on the map.')
