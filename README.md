@@ -25,6 +25,12 @@ script, style and font from madrid.lessane.es. Bay data: `graph-bay.json` (estad
 Edge Function `vivo?city=bay&what=vehicles|alerts|roads` (511: vehicles and BART trip updates every 3 min, alerts 10 min, roads and tolls 30 min; BART placed in `data.js` from its arrival times), Bay Wheels GBFS (stations, free e-bikes, alerts) from the browser, coast from `data/coast-bay.json` (US Census shoreline).
 No Historia and no 30-day episodes for the Bay.
 
+`js/extras.js` adds what moves around the transport: planes over both cities (Edge Function `vivo?what=planes`), ships
+(`vivo?city=bay&what=ships`, aisstream.io) and earthquakes (USGS feed) in the Bay, the ISS when it passes within 1,500 km,
+and Madrid's air (NO2 per station, ciudadesabiertas.madrid.es, stations in `data/aire-estaciones.json`) and car traffic
+(informo.madrid.es pm.xml, UTM 30N). Green things are the stars; planes, ships and cars are drawn faint and warm.
+Pulso's big number cycles every 9 s through `Extras.heroes()`: bikes, trains, buses (Bay), the air (Madrid).
+
 `js/data.js` owns every fetch and poll (trains 15 s, bikes 30 s, status 2 min, episodes 10 min, paused while the tab is hidden);
 views subscribe with `MSM.on(name, fn)`. `historia.html` only redirects to `#historia`.
 

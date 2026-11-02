@@ -68,6 +68,7 @@ window.Pulso = (() => {
       g.beginPath(); l.path.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
     }
     g.setLineDash([]);
+    window.Extras?.bakePulso(g, P, z, W, H);
     if (state.bikes) {
       g.globalCompositeOperation = 'lighter';
       for (const b of state.bikes.list) {
@@ -180,6 +181,7 @@ window.Pulso = (() => {
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     for (const t of trains.values()) { const [x, y] = P(...t.cur); ctx.fillStyle = '#FFF4DA'; ctx.beginPath(); ctx.arc(x, y, 3.2 * z, 0, 6.283); ctx.fill(); }
 
+    window.Extras?.drawPulso(ctx, P, z, now, still);
     lens(now);
     if (!still) raf = requestAnimationFrame(frame);
   }
@@ -246,22 +248,34 @@ window.Pulso = (() => {
     const s = state.status; if (!s || !state.graph) return;
     const red = s.items.filter((i) => i.red);
     const lines = [...new Set(red.map((i) => i.b))];
-    const p = document.getElementById('pulsoLine'); p.replaceChildren();
-    p.append(L(`bicis esperando en ${CITY.name} ahora mismo. `, `bikes waiting across ${CITY.name} right now. `));
-    if (!red.length) p.append(L('Trenes sin cortes.', 'No lines closed.'));
+    let t = '';
+    if (!red.length) t = L('Trenes sin cortes.', 'No lines closed.');
     else {
       const first = red.find((i) => i.scope?.from) || red[0];
-      p.append(first.scope?.from ? L(`La ${first.b} está cortada entre ${first.scope.from} y ${first.scope.to}`, `${first.b} is closed between ${first.scope.from} and ${first.scope.to}`)
-        : L(`La ${first.b} tiene un corte`, `${first.b} has no service`));
+      t = first.scope?.from ? L(`La ${first.b} está cortada entre ${first.scope.from} y ${first.scope.to}`, `${first.b} is closed between ${first.scope.from} and ${first.scope.to}`)
+        : L(`La ${first.b} tiene un corte`, `${first.b} has no service`);
       const more = lines.length - 1;
-      p.append(more > 0 ? L(`, y hay ${more} corte${more > 1 ? 's' : ''} más.`, `, and ${more} more line${more > 1 ? 's' : ''} closed.`) : '.');
+      t += more > 0 ? L(`, y hay ${more} corte${more > 1 ? 's' : ''} más.`, `, and ${more} more line${more > 1 ? 's' : ''} closed.`) : '.';
     }
+    hero.cuts = t; heroLine();
     const cut = document.getElementById('pulsoCuts'); cut.firstElementChild.textContent = lines.length;
     cut.lastChild.textContent = lines.length === 1 ? L(' corte', ' closure') : L(' cortes', ' closures');
     const affected = new Set(s.items.map((i) => i.lineId).filter(Boolean));
     const total = [...state.graph.lines.values()].filter((l) => !l.dup).length;
     document.getElementById('pulsoOk').textContent = L(`${total - affected.size} de ${total}`, `${total - affected.size} of ${total}`);
   }
+
+  // The hero: the big number cycles through what moves green right now (bikes, trains, buses, the air).
+  const hero = { i: -1, started: false, cuts: '', cur: null };
+  function heroLine() { const h = hero.cur; if (h) document.getElementById('pulsoLine').textContent = h.line + (hero.cuts ? ' ' + hero.cuts : ''); }
+  function heroStep() {
+    const list = window.Extras?.heroes() ?? [];
+    if (!list.length) return;
+    hero.started = true; hero.i = (hero.i + 1) % list.length; hero.cur = list[hero.i];
+    const big = document.getElementById('pulsoBig');
+    big.style.color = hero.cur.color; countTo(big, hero.cur.n); heroLine();
+  }
+  setInterval(() => { if (!document.hidden && !document.getElementById('pulso').hidden) heroStep(); }, 9000);
 
   function when() {
     const ok = state.ok.trains || state.ok.bikes;
@@ -320,7 +334,7 @@ window.Pulso = (() => {
     if (ripples.length > 400) ripples.splice(0, ripples.length - 400);
     if (gained && gained.d >= 2) tick('bike', L(`${gained.s.name} +${gained.d} bicis`, `${gained.s.name} +${gained.d} bikes`), { lat: gained.s.lat, lon: gained.s.lon, station: gained.s.id, d: gained.d });
     if (lost && lost.d <= -2) tick('bikeout', L(`${lost.s.name} ${lost.d} bicis`, `${lost.s.name} ${lost.d} bikes`), { lat: lost.s.lat, lon: lost.s.lon, station: lost.s.id, d: lost.d });
-    bake(); kick(); countTo(document.getElementById('pulsoBig'), b.free);
+    bake(); kick(); if (!hero.started) heroStep();
   }
 
 
@@ -395,6 +409,10 @@ window.Pulso = (() => {
       const st = state.bikes?.list.find((b) => b.id === bk.station);
       fly(bk.lat, bk.lon, 5, 4200);
       caption(CITY.bike, `${st?.name ?? L('Estación', 'Station')} · ${bk.d > 0 ? '+' : ''}${bk.d} ${L('bicis', 'bikes')}`, st ? L(`${st.n} bicis y ${st.docks} anclajes libres ahora`, `${st.n} bikes and ${st.docks} free docks now`) : '', bk.d > 0 ? C.verde : C.ambar);
+    } });
+    for (const x of window.Extras?.scenes() ?? []) if (fresh(x.key, x.mins)) list.push({ key: x.key, run: () => {
+      if (x.ll) fly(x.ll[0], x.ll[1], x.kp, 4200); else home(4200);
+      caption(...x.cap);
     } });
     for (const pl of window.MiMadrid?.places?.() ?? []) if (fresh('pl' + pl.id, 8)) list.push({ key: 'pl' + pl.id, run: () => {
       const b = window.MiMadrid.nearestBike(pl);
@@ -475,6 +493,11 @@ window.Pulso = (() => {
     });
     on('trains', (t) => onTrains(t.list));
     on('roads', () => { bake(); kick(); });
+    window.Extras?.on((k, x) => {
+      if (k === 'air' || k === 'traffic') { bake(); kick(); }
+      if (k === 'quake:new') tick('cut', L(`Terremoto M${x.mag.toFixed(1)} · ${x.place}`, `Earthquake M${x.mag.toFixed(1)} · ${x.place}`), { lat: x.lat, lon: x.lon });
+      if (k === 'iss:near') tick('train', L(`La Estación Espacial pasa a ${x.near} km`, `The Space Station is passing ${x.near} km away`));
+    });
     on('health', when);
     applyNight(); setInterval(() => { when(); applyNight(); }, 30000);
   }

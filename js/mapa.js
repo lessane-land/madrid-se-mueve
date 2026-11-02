@@ -223,6 +223,10 @@ window.Mapa = (() => {
     }]);
     const te = fresh('anytrain', 2) && ev.find((e) => e.kind === 'train' && tr?.has(e.trainId) && fresh('tr' + e.trainId + e.stop, 20));
     if (te) list.push(['tr' + te.trainId + te.stop, () => { D.shown.set('anytrain', Date.now()); const t = tr.get(te.trainId); flyTo(t.cur, 15); caption(te.label || te.line, T(`Parado en ${te.stop}`, `Stopped at ${te.stop}`), T(`${tr.size} trenes rodando por ${CITY.name} ahora mismo`, `${tr.size} trains running across ${CITY.name} right now`), t.color); }]);
+    for (const x of window.Extras?.scenes() ?? []) if (fresh(x.key, x.mins)) list.push([x.key, () => {
+      if (x.ll) flyTo(x.ll, x.zm); else map.flyTo(CITY.center, CITY.zoom - 1, { duration: still ? 0 : 3.6 });
+      caption(...x.cap);
+    }]);
     if (CITY.id === 'bay') {
       const pc = (state.trains?.list ?? []).map((t) => [t, state.graph?.lines.get(t.lineId)]).find(([t, l]) => (l?.m === 'ferry' || l?.m === 'cable') && fresh('pc' + l.m, 5));
       if (pc) { const [t, l] = pc; list.push(['pc' + l.m, () => { flyTo([t.lat, t.lon], l.m === 'ferry' ? 14 : 17); caption(l.m === 'ferry' ? T('Ferry · cruzando la Bahía', 'Ferry · crossing the Bay') : 'Cable car', l.n || l.b, t.stop ? T(`Hacia ${t.stop}`, `Heading to ${t.stop}`) : '', l.color); }]); }
@@ -270,6 +274,13 @@ window.Mapa = (() => {
     layers = { metro: L.layerGroup().addTo(map), trains: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), bikes: L.layerGroup().addTo(map) };
     if (CITY.id === 'bay') layers.roads = L.layerGroup().addTo(map);
     alerts = L.layerGroup().addTo(map); focusLayer = L.layerGroup().addTo(map); savedLayer = L.layerGroup().addTo(map);
+    // Extra layers (planes, ships, quakes, air, cars) get their own toggles, before the screen mode button.
+    window.Extras?.attachMap(map, (key, label, color, on, group) => {
+      const b = document.createElement('button'); b.className = 'toggle'; b.type = 'button'; b.setAttribute('aria-pressed', on);
+      const i = document.createElement('i'); i.style.background = color; const k = document.createElement('span'); k.className = 'k'; k.textContent = label;
+      b.append(i, k); document.querySelector('.map-layers [data-map-screen]').before(b);
+      b.onclick = () => { const now = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', now); if (now) group.addTo(map); else map.removeLayer(group); };
+    }, tip);
     MiMadrid.attachSearch($('mapSearch'), focusPlace); MiMadrid.onPlaces(paintSaved); paintSaved();
     document.querySelectorAll('[data-map-screen]').forEach((b) => b.addEventListener('click', enterScreen));
     $('mapExit').addEventListener('click', exitScreen);
