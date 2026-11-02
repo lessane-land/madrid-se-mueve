@@ -22,7 +22,7 @@ remembered, else the browser's). Every user-facing string is written as `L('es',
 `data-es` / `data-en` (with `{city}`, `{bike}`, `{title}` tokens) in `index.html`. The Bay edition lives at
 bayarea.lessane.es: repo lessane-land/bay-area-se-mueve holds only the page that `scripts/bay_index.py` writes, and loads every
 script, style and font from madrid.lessane.es. Bay data: `graph-bay.json` (estado-madrid, monthly from 511),
-Edge Function `vivo?city=bay&what=vehicles|alerts` (511, every 90 s and 5 min), Bay Wheels GBFS from the browser.
+Edge Function `vivo?city=bay&what=vehicles|alerts|roads` (511: vehicles and BART trip updates every 3 min, alerts 10 min, roads and tolls 30 min; BART placed in `data.js` from its arrival times), Bay Wheels GBFS (stations, free e-bikes, alerts) from the browser, coast from `data/coast-bay.json` (US Census shoreline).
 No Historia and no 30-day episodes for the Bay.
 
 `js/data.js` owns every fetch and poll (trains 15 s, bikes 30 s, status 2 min, episodes 10 min, paused while the tab is hidden);
