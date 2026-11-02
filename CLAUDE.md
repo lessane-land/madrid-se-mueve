@@ -14,6 +14,8 @@ One page, four views on the hash, served by GitHub Pages from `main`, root folde
 
 Saved places live only in the visitor's browser, localStorage key `msm.mimadrid.v1` (places, lines, bus lines). No server, no account.
 
+`saver/` is a macOS screen saver (Xcode) that loads `/?pantalla#pulso`: Pulso in Modo pantalla with no exit button and no cursor.
+
 `js/data.js` owns every fetch and poll (trains 15 s, bikes 30 s, status 2 min, episodes 10 min, paused while the tab is hidden);
 views subscribe with `MSM.on(name, fn)`. `historia.html` only redirects to `#historia`.
 
