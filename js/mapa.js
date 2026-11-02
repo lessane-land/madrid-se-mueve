@@ -292,6 +292,23 @@ window.Mapa = (() => {
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'dark-tiles', attribution: `&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · ${T('Datos', 'Data')}: ${CITY.sources}` }).addTo(map);
     map.createPane('lines').style.zIndex = 410; map.createPane('alerts').style.zIndex = 420; map.createPane('bikes').style.zIndex = 430; map.createPane('vehicles').style.zIndex = 650;
+    // One canvas for lines, alerts and bikes. A canvas per pane stacked them, and the top one (bikes) swallowed the
+    // pointer, so nothing underneath (lines, stations, cuts, road closures, quakes) ever got a hover or a click.
+    // The shared canvas keeps the old stacking by pane rank and hit-tests every shape.
+    const RANK = { lines: 0, alerts: 1, bikes: 2 };
+    const Shared = L.Canvas.extend({
+      _addPath(layer) {
+        this._updateDashArray(layer);
+        this._layers[L.Util.stamp(layer)] = layer;
+        const rk = RANK[layer.options.pane] ?? 1, o = layer._order = { layer, prev: null, next: null, rk };
+        let after = this._drawLast; while (after && after.rk > rk) after = after.prev;
+        o.prev = after; o.next = after ? after.next : this._drawFirst;
+        if (o.next) o.next.prev = o; else this._drawLast = o;
+        if (after) after.next = o; else this._drawFirst = o;
+      },
+    });
+    const shared = new Shared({ pane: 'bikes' }), paneRenderer = map._getPaneRenderer.bind(map);
+    map._getPaneRenderer = (name) => (name in RANK ? shared : paneRenderer(name));
     layers = { metro: L.layerGroup().addTo(map), trains: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), bikes: L.layerGroup().addTo(map) };
     if (CITY.id === 'bay') layers.roads = L.layerGroup().addTo(map);
     alerts = L.layerGroup().addTo(map); focusLayer = L.layerGroup().addTo(map); savedLayer = L.layerGroup().addTo(map);
