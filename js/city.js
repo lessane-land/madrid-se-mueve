@@ -54,8 +54,8 @@ window.CITY = (() => {
     viewbox: '-122.75,38.15,-121.75,37.2',
     night: { from: 1.5, to: 4.5, back: L('BART vuelve a las 5:00', 'BART is back at 5:00') },
     sources: '511 SF Bay, Bay Wheels',
-    sourceNote: L('Estado: avisos de servicio de 511 SF Bay, de todos los operadores. Trenes: posiciones en vivo de 511, cada 90 segundos.',
-      'Status: 511 SF Bay service alerts, every operator. Trains: live 511 positions, every 90 seconds.'),
+    sourceNote: L('Estado: avisos de servicio de 511 SF Bay, de todos los operadores. Trenes: posiciones de 511 cada 3 minutos; BART, situado entre estaciones con sus horas de llegada.',
+      'Status: 511 SF Bay service alerts, every operator. Trains: 511 positions every 3 minutes; BART placed between stations from its arrival times.'),
     search: L('Busca: Embarcadero, Mission, tu calle', 'Search: Embarcadero, Mission, your street'),
     busOperator: 'Muni, AC Transit',
   };

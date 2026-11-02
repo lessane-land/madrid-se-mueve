@@ -80,7 +80,8 @@ window.Lineas = (() => {
       row.title = mine.map((i) => i.title).join(' · ');
       if (CITY.live.includes(l.m)) {
         const n = perTrain[l.i] || 0;
-        sub.textContent = n ? L(`${n} tren${n > 1 ? 'es' : ''} rodando ahora`, `${n} train${n > 1 ? 's' : ''} running now`) : state.trains ? L('ningún tren rodando ahora', 'no train running now') : '';
+        const [es1, esN, en1, enN] = l.m === 'ferry' ? ['barco', 'barcos', 'boat', 'boats'] : l.m === 'cable' ? ['cable car', 'cable cars', 'cable car', 'cable cars'] : ['tren', 'trenes', 'train', 'trains'];
+        sub.textContent = n ? L(`${n} ${n > 1 ? esN : es1} en marcha ahora`, `${n} ${n > 1 ? enN : en1} running now`) : state.trains ? L(`ningún ${es1} en marcha ahora`, `no ${en1} running now`) : '';
       } else sub.textContent = L(`${l.s.length} estaciones`, `${l.s.length} stations`);
       if (!CITY.episodes) { fill.parentElement.hidden = true; continue; }
       const n = ep[l.i] || 0;
