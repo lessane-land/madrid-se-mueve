@@ -1,7 +1,9 @@
 # Madrid se mueve · screen saver
 
-A macOS screen saver that shows Pulso from madrid.lessane.es in Modo pantalla.
-It is a web view on `https://madrid.lessane.es/?pantalla#pulso`, so every change to the site reaches it on its own.
+A macOS screen saver that shows Pulso in Modo pantalla, for Madrid or the Bay Area.
+It is a web view on `https://madrid.lessane.es/?pantalla#pulso` (or `bayarea.lessane.es`), so every change to the site
+reaches it on its own. System Settings > Screen Saver > Options picks the city and the language (automatic, Español,
+English); the choice is kept in the screen saver's own defaults.
 
 ## Build and install
 1. Open `MadridSaver.xcodeproj` in Xcode.
