@@ -36,7 +36,9 @@ window.Extras = (() => {
   async function quakes() {
     if (!BAY) return;
     const d = await (await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson')).json();
-    const fresh = d.features.map((f) => ({ id: f.id, mag: f.properties.mag ?? 0, place: f.properties.place ?? '', time: f.properties.time, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], depth: f.geometry.coordinates[2] }))
+    const fresh = d.features.map((f) => { const p = f.properties; return { id: f.id, mag: p.mag ?? 0, magType: p.magType ?? '', place: p.place ?? '', time: p.time, type: p.type ?? 'earthquake',
+      felt: p.felt ?? 0, cdi: p.cdi ?? null, mmi: p.mmi ?? null, tsunami: !!p.tsunami, alert: p.alert ?? null, url: p.url ?? '', status: p.status ?? '',
+      lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], depth: f.geometry.coordinates[2] }; })
       .filter((q) => KM(CITY.center, [q.lat, q.lon]) < 220 && q.mag >= 1);
     const known = new Set(X.quakes.map((q) => q.id));
     const isNew = X.at.quakes ? fresh.filter((q) => !known.has(q.id)) : [];
@@ -125,6 +127,43 @@ window.Extras = (() => {
   }
   const shipAt = (s, now) => (s.cur = s.sog > .5 ? advance(s, now, s.sog, s.cog, 180000) : [s.lat, s.lon]);
 
+  // ---- Earthquakes in words ----
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  function magWords(m) {
+    return m < 2.5 ? L('No se siente; solo lo registran los sismógrafos.', 'Not felt; only seismographs record it.')
+      : m < 4 ? L('A menudo se siente cerca; casi nunca causa daños.', 'Often felt nearby; rarely causes damage.')
+      : m < 5 ? L('Se siente en una zona amplia; daños menores posibles.', 'Felt widely; minor damage possible.')
+      : m < 6 ? L('Puede dañar edificios poco resistentes.', 'Can damage weak buildings.')
+      : L('Fuerte: puede causar daños graves.', 'Strong: can cause serious damage.');
+  }
+  function whenText(t) {
+    const d = new Date(t), today = new Date().toLocaleDateString(CITY.locale, { timeZone: CITY.tz });
+    const day = d.toLocaleDateString(CITY.locale, { timeZone: CITY.tz });
+    return (day === today ? '' : d.toLocaleDateString(CITY.locale, { weekday: 'short', day: 'numeric', timeZone: CITY.tz }) + ' ') + CITY.time(d) + ' · ' + ago(t);
+  }
+  function quakeCard(q, onClose) {
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+    const box = el('div', 'pc'), head = el('div', 'pc-head'), title = el('div');
+    const kind = q.type === 'earthquake' ? L('Terremoto', 'Earthquake') : q.type;
+    title.append(el('div', 'pc-kind', `${kind} · USGS`), el('div', 'pc-name', q.place));
+    const x = el('button', 'pc-x', L('Cerrar', 'Close')); x.type = 'button'; x.onclick = () => onClose?.();
+    head.append(title, x); box.append(head);
+    const row = el('div', 'pc-bikes'), big = el('div', 'pc-big', q.mag.toFixed(1)); big.style.color = q.mag >= 4 ? C.rojo : C.ambar;
+    const txt = el('div'); txt.append(el('div', 'pc-t', L(`magnitud (${q.magType})`, `magnitude (${q.magType})`)), el('div', 'pc-s', magWords(q.mag)));
+    row.append(big, txt); box.append(row);
+    const facts = [
+      whenText(q.time),
+      L(`${Math.round(q.depth)} km de profundidad`, `${Math.round(q.depth)} km deep`),
+      q.felt ? L(`${fmt.format(q.felt)} personas dijeron que lo sintieron`, `${fmt.format(q.felt)} people reported feeling it`) : L('Nadie ha dicho todavía que lo sintiera', 'Nobody has reported feeling it yet'),
+      q.cdi ? L(`Intensidad sentida: ${ROMAN[Math.round(q.cdi)] || q.cdi}`, `Felt intensity: ${ROMAN[Math.round(q.cdi)] || q.cdi}`) : '',
+      q.tsunami ? L('Aviso de tsunami en el boletín', 'Tsunami flag on the bulletin') : '',
+      q.status === 'reviewed' ? L('Revisado por un sismólogo', 'Reviewed by a seismologist') : L('Cálculo automático, aún sin revisar', 'Automatic estimate, not yet reviewed'),
+    ].filter(Boolean);
+    for (const f of facts) box.append(el('div', 'pc-s', f));
+    if (q.url) { const a = el('a', 'pc-btn', L('Ver en el USGS', 'See it on USGS')); a.href = q.url; a.target = '_blank'; a.rel = 'noopener'; const foot = el('div', 'pc-foot'); foot.append(a); box.append(foot); }
+    return box;
+  }
+
   // ---- Pulso ----
   // Static layers, drawn into Pulso's baked canvas: Madrid's car traffic as warm embers and its air as a haze.
   function bakePulso(g, P, z, W, H) {
@@ -199,10 +238,28 @@ window.Extras = (() => {
       (p) => [p.f || p.id.toUpperCase(), [p.t, ft(p.alt), `${Math.round(p.gs)} kt`].filter(Boolean).join(' · ')], (p) => planeAt(p, performance.now()));
     const drawShips = () => sync('ships', X.ships, (s) => svgShip(s.cog || 0),
       (s) => [s.name || 'MMSI ' + s.id, [s.to && L(`Hacia ${s.to}`, `To ${s.to}`), `${s.sog.toFixed(1)} kn`].filter(Boolean).join(' · ')], (s) => shipAt(s, performance.now()));
+    const card = document.getElementById('placeCard');
+    const openQuake = (q, fly) => {
+      if (fly) map.flyTo([q.lat, q.lon], Math.max(map.getZoom(), 10), { duration: 1.4 });
+      card.hidden = false; card.replaceChildren(quakeCard(q, () => { card.hidden = true; }));
+    };
+    let list = null;
+    if (BAY) { list = document.createElement('div'); list.className = 'quake-list'; document.querySelector('.map-panel #mStatus').after(list); }
     const drawQuakes = () => {
       groups.quakes.clearLayers();
       for (const q of X.quakes) L_.circleMarker([q.lat, q.lon], { pane: 'alerts', radius: 4 + q.mag * 4, color: C.ambar, weight: 2, fillColor: C.ambar, fillOpacity: .15 })
-        .bindTooltip(tip(`M${q.mag.toFixed(1)}`, `${q.place} · ${ago(q.time)} · ${Math.round(q.depth)} km`)).addTo(groups.quakes);
+        .bindTooltip(tip(`M${q.mag.toFixed(1)} · ${q.place}`, `${whenText(q.time)} · ${Math.round(q.depth)} km`)).on('click', () => openQuake(q, false)).addTo(groups.quakes);
+      if (!list) return;
+      const top = [...X.quakes].sort((a, b) => b.time - a.time).slice(0, 5);
+      list.replaceChildren();
+      if (!top.length) return;
+      const h = document.createElement('div'); h.className = 'ql-h'; h.textContent = L('Terremotos de hoy', "Today's earthquakes"); list.append(h);
+      for (const q of top) {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'st ql';
+        const m = document.createElement('span'); m.className = 'pill'; m.style.background = C.ambar; m.style.color = C.ink; m.textContent = 'M' + q.mag.toFixed(1);
+        const t = document.createElement('span'); t.textContent = `${q.place} · ${ago(q.time)}`;
+        b.append(m, t); b.onclick = () => openQuake(q, true); list.append(b);
+      }
     };
     const drawAir = () => {
       groups.air.clearLayers();
@@ -253,5 +310,12 @@ window.Extras = (() => {
     return list;
   }
 
-  return { start, on: (f) => subs.push(f), bakePulso, drawPulso, attachMap, scenes, heroes, data: X };
+  // Pulso's lens: the quake nearest the pointer, if any.
+  function lensQuake(P, px, py) {
+    let best = null, bd = 1e9;
+    for (const q of X.quakes) { const [x, y] = P(q.lat, q.lon), d = Math.hypot(x - px, y - py); if (d < bd) { bd = d; best = { q, x, y, d }; } }
+    return best && best.d < 30 ? { ...best, title: `${L('Terremoto', 'Earthquake')} M${best.q.mag.toFixed(1)}`, text: `${best.q.place} · ${whenText(best.q.time)} · ${magWords(best.q.mag)}` } : null;
+  }
+
+  return { start, on: (f) => subs.push(f), bakePulso, drawPulso, attachMap, scenes, heroes, lensQuake, quakeCard, data: X };
 })();

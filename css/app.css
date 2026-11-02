@@ -322,3 +322,8 @@ body.screen .coffee, body.screen-map .coffee, body.kiosk .coffee { display: none
 .back-chip { color: var(--ink) !important; background: var(--hielo) !important; border-color: var(--hielo) !important; font-weight: 600; }
 .back-chip::before { content: '\2190'; margin-right: 6px; }
 .back-chip[hidden] { display: none; }
+
+/* Today's earthquakes in the map panel */
+.quake-list .ql-h { font: 600 11px var(--count); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin: 10px 0 4px; }
+.quake-list .ql { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding-left: 0; padding-right: 0; }
+.quake-list .ql:hover span:last-child { color: var(--paper); }

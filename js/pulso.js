@@ -204,12 +204,25 @@ window.Pulso = (() => {
       const [x, y] = P(...t.cur), d = Math.hypot(x - pointer[0], y - pointer[1]);
       if (d < 26 && d < nd + 12) { nd = d; near = { kind: 'train', t, x, y }; }
     }
+    for (const r of state.roads?.roads ?? []) {
+      if (r.kind !== 'closed') continue;
+      for (const pt of r.path) {
+        const [x, y] = P(pt[0], pt[1]), d = Math.hypot(x - pointer[0], y - pointer[1]);
+        if (d < 22 && d < nd) {
+          const until = r.until ? new Date(r.until) : null;
+          const when = until ? L(`hasta las ${CITY.time(until)}`, `until ${CITY.time(until)}`) + (until.toDateString() !== new Date().toDateString() ? L(' de mañana', ' tomorrow') : '') : '';
+          nd = d; near = { kind: 'road', x, y, title: L('Calle cortada', 'Road closed') + ' · ' + r.road, text: [r.from && r.to ? `${r.from} - ${r.to}` : '', when, r.text].filter(Boolean).join(' · ') };
+        }
+      }
+    }
+    const qk = window.Extras?.lensQuake(P, pointer[0], pointer[1]);
+    if (qk && qk.d < nd) { nd = qk.d; near = { kind: 'quake', x: qk.x, y: qk.y, title: qk.title, text: qk.text }; }
     ctx.globalAlpha = 1;
     ctx.strokeStyle = 'rgba(143,211,255,.35)'; ctx.lineWidth = 1; ctx.setLineDash([2, 4]);
     ctx.beginPath(); ctx.arc(pointer[0], pointer[1], R, 0, 6.283); ctx.stroke(); ctx.setLineDash([]);
     if (!near || nd > 40) { tipEl.hidden = true; return; }
     ctx.strokeStyle = C.hielo; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(near.x, near.y, 10, 0, 6.283); ctx.stroke();
-    const [a, b] = near.kind === 'bike'
+    const [a, b] = near.kind === 'quake' || near.kind === 'road' ? [near.title, near.text] : near.kind === 'bike'
       ? [CITY.bike, L(`${near.b.name}: ${near.b.n} bicis, ${near.b.docks} anclajes libres`, `${near.b.name}: ${near.b.n} bikes, ${near.b.docks} free docks`)]
       : [near.t.label, near.t.where];
     if (tipEl.dataset.k !== a + b) {

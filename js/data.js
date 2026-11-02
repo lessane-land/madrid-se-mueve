@@ -224,7 +224,10 @@
     const r = await fetch(CFG.VIVO + '?city=bay&what=roads', { headers: CFG.auth });
     if (!r.ok) throw new Error('vivo ' + r.status);
     const d = await r.json();
-    state.roads = { roads: d.roads ?? [], tolls: d.tolls ?? [], at: d.at };
+    // Street names come in capitals and some fields as the word "undefined": tidy both once, here.
+    const tc = (t) => String(t || '').replace(/^undefined$/i, '').toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (m, p, c) => p + c.toUpperCase()).replace(/\b(St|Ave|Blvd|Rd|Dr|Hwy|Sb|Nb|Eb|Wb)\b/g, (w) => (w.length === 2 && /[NSEW]b/.test(w) ? w.toUpperCase() : w));
+    const roads = (d.roads ?? []).map((r) => ({ ...r, road: tc(r.road), from: tc(r.from), to: tc(r.to), dir: tc(r.dir) }));
+    state.roads = { roads, tolls: d.tolls ?? [], at: d.at };
     emit('roads');
   }
 
