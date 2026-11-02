@@ -37,7 +37,7 @@ window.CITY = (() => {
   const bay = {
     id: 'bay', name: L('la Bahía', 'the Bay Area'), title: 'Bay Area se mueve', site: 'bay.lessane.es', other: { name: 'Madrid', url: 'https://madrid.lessane.es/' },
     tz: 'America/Los_Angeles', center: [37.7749, -122.4194], zoom: 12,
-    pulso: { lat: 37.80, lon: -122.31, w: 38, h: 24, wn: 22, hn: 32, min: .45 },
+    pulso: { lat: 37.745, lon: -122.37, w: 38, h: 24, wn: 22, hn: 32, min: .45 },
     graph: 'https://raw.githubusercontent.com/lessane-land/estado-madrid/main/graph-bay.json',
     gbfs: (feed) => 'https://gbfs.lyft.com/gbfs/2.3/bay/en/' + feed + '.json',
     bike: 'Bay Wheels', rail: ['bart', 'metro', 'rail', 'tram', 'cable', 'ferry'], live: ['bart', 'metro', 'rail', 'tram', 'cable', 'ferry'],
