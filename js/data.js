@@ -141,18 +141,22 @@
 
   // The Bay: one 511 feed with every vehicle. Rail, tram, cable car and ferry become trains; the rest are buses.
   const STATUS = { 0: 'INCOMING_AT', 1: 'STOPPED_AT', 2: 'IN_TRANSIT_TO' };
+  const OPS = { SF: 'Muni', AC: 'AC Transit', SC: 'VTA', SM: 'SamTrans', GG: 'Golden Gate', CC: 'County Connection', WH: 'Wheels', MA: 'Marin Transit',
+    '3D': 'Tri Delta', ST: 'SolTrans', VN: 'VINE', SR: 'Santa Rosa', SO: 'Sonoma County', PE: 'Petaluma', WC: 'WestCat', UC: 'Union City', FS: 'FAST',
+    EM: 'Emery Go-Round', DE: 'Dumbarton Express', CM: 'Commute.org', SI: 'SFO', MB: 'Mission Bay', PG: 'Presidio Go', VC: 'Vacaville', RV: 'Delta Breeze' };
   async function loadBayVehicles() {
     const r = await fetch(CFG.VIVO + '?city=bay&what=vehicles', { headers: CFG.auth });
     if (!r.ok) throw new Error('vivo ' + r.status);
     const d = await r.json(), trains = [], buses = [];
-    for (const v of d.vehicles ?? []) {
+    for (const v0 of d.vehicles ?? []) {
+      const v = { ...v0, a: v0.a || (v0.r.includes(':') ? v0.r.split(':')[0] : '') };
       const l = bayLine(v.a, v.r);
       if (l) {
         const stop = state.graph.stops.get(v.s) || state.graph.stops.get(`${v.a}:${v.s}`);
-        trains.push({ id: v.a + v.id, line: l.b, lineId: l.i, lat: v.lat, lon: v.lon, status: STATUS[v.st] ?? '', stop: stop?.n ?? null });
-      } else {
+        trains.push({ id: v.a + ':' + v.id, line: l.b, lineId: l.i, lat: v.lat, lon: v.lon, status: STATUS[v.st] ?? '', stop: stop?.n ?? null });
+      } else if (v.r) {
         const rt = state.graph?.routes.get(v.r) || state.graph?.routes.get(`${v.a}:${v.r}`);
-        buses.push({ bus: v.a + v.id, line: rt?.b || v.r.split(':').pop() || '?', dest: rt?.n || '', color: rt?.c || C.hielo, op: state.graph?.agencies?.[v.a] || v.a, lat: v.lat, lon: v.lon, secs: null });
+        buses.push({ bus: v.a + ':' + v.id, line: rt?.b || v.r.split(':').pop() || '?', dest: rt?.n || '', color: rt?.c || C.hielo, op: OPS[v.a] || state.graph?.agencies?.[v.a] || v.a, lat: v.lat, lon: v.lon, secs: null });
       }
     }
     state.trains = { list: trains, at: d.at };
