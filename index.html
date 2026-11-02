@@ -176,8 +176,8 @@ async function loadStatus() {
         if (a >= 0 && z >= 0) pts = seq.slice(Math.min(a, z), Math.max(a, z) + 1).map((s) => [s.la, s.lo]);
       }
       if (!pts) pts = l.sh ? decode(l.sh) : l.s.map((id) => stops.get(id)).filter(Boolean).map((s) => [s.la, s.lo]);
-      L.polyline(pts, { pane: 'alerts', color: col, weight: 9, opacity: .35, lineCap: 'round' }).addTo(alerts);
-      L.polyline(pts, { pane: 'alerts', color: col, weight: 3, opacity: 1, dashArray: '6 6' })
+      L.polyline(pts, { pane: 'alerts', color: col, weight: 13, opacity: .45, lineCap: 'round' }).addTo(alerts);
+      L.polyline(pts, { pane: 'alerts', color: col, weight: 4, opacity: 1, dashArray: '8 6' })
         .bindTooltip(tip(`${b} · ${i.severity === 'rojo' ? 'cortada' : 'con problemas'}`, i.title || i.text || ''), { sticky: true }).addTo(alerts);
     }
     statusRows.push({ col, lines: (i.lines ?? []).join(' '), text: String(i.title || i.text || '').replace(/^#Mad\w*\s*/i, '') });
