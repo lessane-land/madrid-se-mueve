@@ -345,5 +345,8 @@ body.screen .coffee, body.screen-map .coffee, body.kiosk .coffee { display: none
 
 /* Today's earthquakes in the map panel */
 .quake-list .ql-h { font: 600 11px var(--count); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); margin: 10px 0 4px; }
+.map-panel .st.go { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); color: inherit; font: inherit; font-size: 13px; cursor: pointer; padding-left: 0; padding-right: 0; }
+.map-panel .st.go:first-of-type { border-top: 0; }
+.map-panel .st.go:hover span:last-child { color: var(--paper); }
 .quake-list .ql { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding-left: 0; padding-right: 0; }
 .quake-list .ql:hover span:last-child { color: var(--paper); }

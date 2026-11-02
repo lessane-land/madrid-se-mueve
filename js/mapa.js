@@ -36,9 +36,15 @@ window.Mapa = (() => {
         .bindTooltip(tip(`${it.b} · ${it.red ? T('cortada', 'closed') : T('con avisos', 'alerts')}`, it.title), { sticky: true }).addTo(alerts);
     }
     const byTitle = new Map();
-    for (const it of items) { const k = it.title; if (!byTitle.has(k)) byTitle.set(k, { ...it, bs: new Set() }); byTitle.get(k).bs.add(it.b); if (it.red) byTitle.get(k).color = it.color; }
+    for (const it of items) { const k = it.title; if (!byTitle.has(k)) byTitle.set(k, { ...it, bs: new Set(), all: [] }); const g = byTitle.get(k); g.bs.add(it.b); if (it.pts) g.all.push(...it.pts); if (it.red) g.color = it.color; }
     for (const it of [...byTitle.values()].sort((a, b) => b.red - a.red).slice(0, 8)) {
-      const d = document.createElement('div'); d.className = 'st';
+      // Tap a notice: fly to the stretch it affects, or to its whole line when the notice names no stretch.
+      const d = document.createElement('button'); d.type = 'button'; d.className = 'st go';
+      d.onclick = () => {
+        if (it.all.length) map.flyToBounds(L.latLngBounds(it.all), { padding: [70, 70], maxZoom: 15, duration: still ? 0 : 1.2 });
+        else focus([...it.bs][0]);
+        if (matchMedia('(max-width: 720px)').matches) { $('mPanelHead').closest('.map-panel').classList.remove('open'); $('mPanelHead').setAttribute('aria-expanded', false); }
+      };
       const p = document.createElement('span'); p.className = 'pill'; p.style.background = it.color; p.textContent = [...it.bs].join(' ');
       const t = document.createElement('span'); t.textContent = it.title.length > 150 ? it.title.slice(0, 147) + '...' : it.title;
       d.append(p, t); list.append(d);
