@@ -3,8 +3,17 @@
 Live map of Madrid public transport: Metro and Metro Ligero lines with their cuts, Cercanías trains moving,
 EMT buses arriving at the stops on screen, and every BiciMAD station with free bikes.
 
-Two pages: `index.html` (live map) and `historia.html` (BiciMAD day by day since 2024 against rain, free days, strikes
-and the blackout, plus the last 30 days of Madrid hoy line episodes). Served by GitHub Pages from `main`, root folder. One static page, no build step.
+One page, four views on the hash, served by GitHub Pages from `main`, root folder. No build step.
+
+| View | Hash | What it is | Code |
+|---|---|---|---|
+| Pulso | `#pulso` (default) | The city drawn by its BiciMAD stations, rail lines and moving trains; the free-bike count and the cuts | `js/pulso.js`, canvas |
+| Mapa | `#mapa`, `#mapa-L10` focuses a line | Leaflet map: lines, cuts, trains, bikes, EMT buses from zoom 16 | `js/mapa.js` |
+| Líneas | `#lineas` | Departure board: every rail line on split flaps, trains running, 30 days of trouble | `js/lineas.js` |
+| Historia | `#historia` | BiciMAD since 2024 against rain, free days, strikes and the blackout | `js/historia.js`, d3 |
+
+`js/data.js` owns every fetch and poll (trains 15 s, bikes 60 s, status 2 min, episodes 10 min, paused while the tab is hidden);
+views subscribe with `MSM.on(name, fn)`. `historia.html` only redirects to `#historia`.
 
 ## Where the data comes from
 
