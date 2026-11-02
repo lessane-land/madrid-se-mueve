@@ -44,7 +44,7 @@
       const line = { ...l, path, color };
       // BART publishes each direction as its own route (Red-N, Red-S): one line on the board and in status.
       if (BAY) {
-        line.b = l.b.replace(/-[NS]$/, '');
+        line.b = l.b.replace(/-[NS]$/, '').replace(/ Line$/, '');
         if (line.n && line.n === line.n.toUpperCase()) line.n = line.n.toLowerCase().replace(/(^|[\s(/-])(\w)/g, (m, p, c) => p + c.toUpperCase());
         const k = l.a + ':' + line.b;
         if (boardKey.has(k)) line.dup = true; else boardKey.set(k, l.i);
