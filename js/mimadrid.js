@@ -47,8 +47,22 @@ window.MiMadrid = (() => {
     return index.filter((x) => x.k.includes(n)).sort((a, b) => (a.k.startsWith(n) ? 0 : 1) - (b.k.startsWith(n) ? 0 : 1) || a.rank - b.rank || a.k.length - b.k.length).slice(0, 8);
   }
 
+  // Pick the stops that cover the most bus lines within a short walk; your own lines first.
+  function busStops(p) {
+    const want = new Set(cfg.buses.split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean));
+    const near = nearStops(p, 'emt', 600, 40);
+    const chosen = [], covered = new Set();
+    const score = ({ s }) => s.l.map((id) => id.split(':')[1].toUpperCase()).filter((l) => !covered.has(l)).reduce((a, l) => a + (want.has(l) ? 10 : 1), 0);
+    while (chosen.length < 3) {
+      let best = null, bs = 0;
+      for (const x of near) { if (chosen.includes(x)) continue; const sc = score(x) / (1 + x.m / 250); if (sc > bs) { bs = sc; best = x; } }
+      if (!best) break;
+      chosen.push(best); best.s.l.forEach((id) => covered.add(id.split(':')[1].toUpperCase()));
+    }
+    return chosen;
+  }
   async function buses(p) {
-    const stops = nearStops(p, 'emt', 450, 2).map((x) => x.s.i.split(':')[1]);
+    const stops = busStops(p).map((x) => x.s.i.split(':')[1]);
     if (!stops.length) return null;
     const key = stops.join(','), hit = busCache.get(key);
     if (hit && Date.now() - hit.at < 40000) return hit.list;
@@ -107,13 +121,15 @@ window.MiMadrid = (() => {
       const box = document.querySelector(`.mm-bus[data-place="${p.id}"]`); if (!box) continue;
       const list = await buses(p);
       box.replaceChildren();
-      if (list == null) { box.append(el('div', 'mm-sub', 'Sin paradas de EMT a menos de 450 m.')); continue; }
-      const rows = list.filter((v) => v.secs != null && (!want.length || want.includes(String(v.line).toUpperCase()))).sort((a, b) => a.secs - b.secs).slice(0, 4);
+      if (list == null) { box.append(el('div', 'mm-sub', 'Sin paradas de EMT a menos de 600 m.')); continue; }
+      const rows = list.filter((v) => v.secs != null && (!want.length || want.includes(String(v.line).toUpperCase()))).sort((a, b) => a.secs - b.secs).slice(0, 5);
       if (!rows.length) { box.append(el('div', 'mm-sub', want.length ? `Ningún ${want.join(', ')} a la vista ahora.` : 'Ningún bus a la vista ahora.')); continue; }
       const ul = el('ul', 'mm-buses');
       for (const v of rows) {
         const li = el('li'); const ln = el('span', 'bus', v.line); const t = el('span', 'mm-eta', v.secs < 60 ? 'llegando' : `${Math.round(v.secs / 60)} min`);
-        li.append(ln, el('span', 'mm-dest', v.dest), t); ul.append(li);
+        const stop = state.graph?.stops.get('emt:' + v.stop);
+        const dest = el('span', 'mm-dest'); dest.append(document.createTextNode(v.dest), el('small', null, stop ? ` · en ${stop.n}` : ''));
+        li.append(ln, dest, t); ul.append(li);
       }
       box.append(ul);
     }
@@ -165,5 +181,5 @@ window.MiMadrid = (() => {
     on('trains', () => { if (!$('mimadrid').hidden && cfg.lines.some((x) => x.startsWith('cercanias'))) renderBlocks(); });
     busTimer = setInterval(() => { if (!$('mimadrid').hidden && !document.hidden) fillBuses(); }, 45000);
   }
-  return { start, shown: () => renderBlocks(), places: () => cfg.places, nearestBike };
+  return { start, shown: () => renderBlocks(), places: () => cfg.places, nearestBike, buses };
 })();

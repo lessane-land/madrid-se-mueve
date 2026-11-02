@@ -206,6 +206,7 @@ body.screen::after { content: ""; position: fixed; inset: 0; pointer-events: non
 .mm-buses { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .mm-buses li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; font-size: 14px; }
 .mm-buses .bus { transform: none; font-size: 12px; padding: 2px 7px; }
+.mm-dest small { color: var(--mute); font-size: 12px; }
 .mm-dest { color: #C9C6BD; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-eta { font-family: var(--count); font-weight: 600; color: var(--hielo); }
 .mm-link { font-size: 13px; }
@@ -228,3 +229,8 @@ body.screen::after { content: ""; position: fixed; inset: 0; pointer-events: non
 .mm-chip { font-family: var(--count); font-weight: 600; font-size: 12px; min-width: 44px; padding: 6px 8px; border-radius: 8px; background: transparent; border: 1.5px solid var(--lc); cursor: pointer; color: var(--paper); }
 .mm-chip[aria-pressed="true"] { background: var(--lc); color: var(--ink); }
 .mm-foot a, .wrap .note a { color: var(--hielo); }
+
+/* Night: Metro closed, the city dims and the caption becomes a quiet clock */
+body.night .dir-caption .t { font-weight: 700; font-size: clamp(56px, 9vw, 150px); color: #CFE7FF; text-shadow: 0 0 40px rgba(143,211,255,.25); }
+body.night .dir-caption .s { color: #9FB3C8; }
+body.night .dir-brand { opacity: .5; }

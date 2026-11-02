@@ -295,6 +295,26 @@ window.Pulso = (() => {
   }
 
 
+
+  // Night: between Metro closing and opening the city dims, the director slows down and waits for the first train.
+  const forceNight = new URLSearchParams(location.search).has('noche');
+  function madridHour() { const p = new Intl.DateTimeFormat('es', { hour: 'numeric', minute: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Madrid' }).formatToParts(new Date()); const g = (t) => +p.find((x) => x.type === t).value; return g('hour') + g('minute') / 60; }
+  function nightness() {
+    if (forceNight) return 1;
+    const h = madridHour();
+    if (h >= 1.5 && h < 5.5) return 1;
+    if (h >= 1 && h < 1.5) return (h - 1) / .5;
+    if (h >= 5.5 && h < 6.25) return 1 - (h - 5.5) / .75;
+    return 0;
+  }
+  let night = 0, wasNight = false;
+  function applyNight() {
+    night = nightness();
+    cv.style.filter = night ? `brightness(${1 - .5 * night}) saturate(${1 - .35 * night})` : '';
+    document.body.classList.toggle('night', night > .5);
+    if (night > .5) wasNight = true;
+  }
+
   // Modo pantalla: full screen, no interface, the camera flies to what is happening right now.
   const D = { on: false, timer: 0, n: 0, shown: new Map(), lock: null, idle: 0 };
   const capEl = () => document.getElementById('dirCaption');
@@ -338,9 +358,29 @@ window.Pulso = (() => {
     for (const pl of window.MiMadrid?.places?.() ?? []) if (fresh('pl' + pl.id, 8)) list.push({ key: 'pl' + pl.id, run: () => {
       const b = window.MiMadrid.nearestBike(pl);
       fly(pl.lat, pl.lon, 5.5, 4200);
-      caption('Mi Madrid · ' + pl.label, b ? `${b.n} bicis en ${b.name}` : pl.name, b ? `${b.docks} anclajes libres · a ${Math.round(b.m)} m` : '', b ? (b.n === 0 ? C.rojo : b.n < 4 ? C.ambar : C.verde) : C.paper);
+      const bikeLine = b ? `${b.docks} anclajes libres · a ${Math.round(b.m)} m` : '';
+      caption('Mi Madrid · ' + pl.label, b ? `${b.n} bicis en ${b.name}` : pl.name, bikeLine, b ? (b.n === 0 ? C.rojo : b.n < 4 ? C.ambar : C.verde) : C.paper);
+      window.MiMadrid.buses?.(pl).then((list) => {
+        const next = (list || []).filter((v) => v.secs != null).sort((a, z) => a.secs - z.secs)[0];
+        if (!next || !D.on) return;
+        const stop = state.graph?.stops.get('emt:' + next.stop)?.n;
+        const eta = next.secs < 60 ? 'llegando' : `en ${Math.round(next.secs / 60)} min`;
+        setTimeout(() => { if (D.on) caption('Mi Madrid · ' + pl.label, `Tu ${next.line} ${eta}`, `Hacia ${next.dest.toLowerCase()}${stop ? ', parada ' + stop : ''} · ${b ? b.n + ' bicis al lado' : ''}`, C.hielo); }, 5200);
+      });
     } });
     D.n++;
+    if (night > .5) {
+      return () => {
+        home(6000);
+        const t = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+        caption('Madrid duerme', t, `El Metro vuelve a las 6:00. ${fmt.format(state.bikes?.free ?? 0)} bicis esperando${trains.size ? ` y ${trains.size} trenes todavía rodando` : ''}.`, C.hielo);
+      };
+    }
+    if (wasNight && night < .5 && trains.size) {
+      wasNight = false;
+      const first = [...trains.values()][0];
+      return () => { fly(first.cur[0], first.cur[1], 4, 5000); caption('Madrid despierta', `Primer tren: ${first.line}`, first.where.charAt(0).toUpperCase() + first.where.slice(1), C.tren); };
+    }
     if (D.n % 2 === 1 || !list.length) {
       return () => { home(3600); caption('Madrid se mueve', `${fmt.format(state.bikes?.free ?? 0)} bicis libres`, `${trains.size} trenes de Cercanías rodando · ${new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })}`, C.verde); };
     }
@@ -349,7 +389,7 @@ window.Pulso = (() => {
   function stepDirector() {
     if (!D.on) return;
     nextScene()();
-    D.timer = setTimeout(stepDirector, still ? 14000 : 11000);
+    D.timer = setTimeout(stepDirector, night > .5 ? 30000 : still ? 14000 : 11000);
   }
   async function lockScreen() { try { D.lock = await navigator.wakeLock?.request('screen'); } catch {} }
   function enterScreen() {
@@ -391,7 +431,7 @@ window.Pulso = (() => {
     });
     on('trains', (t) => onTrains(t.list));
     on('health', when);
-    setInterval(when, 30000);
+    applyNight(); setInterval(() => { when(); applyNight(); }, 30000);
   }
   return { start, enterScreen, exitScreen, shown: () => { size(); kick(); } };
 })();
