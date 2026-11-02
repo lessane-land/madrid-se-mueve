@@ -25,10 +25,10 @@
 </head>
 <body>
 <header class="bar">
-  <a class="brand" href="#mapa">Madrid se mueve</a>
+  <a class="brand" href="#pulso">Madrid se mueve</a>
   <nav class="views" aria-label="Vistas">
-    <a href="#mapa">Mapa</a>
     <a href="#pulso">Pulso</a>
+    <a href="#mapa">Mapa</a>
     <a href="#lineas">Líneas</a>
   </nav>
 </header>
@@ -172,12 +172,12 @@
 <script>
 // Router: one view at a time, on the hash. Views start lazily the first time they are shown.
 (() => {
-  const VIEWS = ['mapa', 'pulso', 'lineas', 'historia'];
+  const VIEWS = ['pulso', 'mapa', 'lineas', 'historia'];
   const started = {};
   const START = { pulso: window.Pulso, mapa: window.Mapa, lineas: window.Lineas, historia: window.Historia };
   function show() {
     let [v, arg] = location.hash.slice(1).split('-');
-    if (!VIEWS.includes(v)) v = 'mapa';
+    if (!VIEWS.includes(v)) v = 'pulso';
     for (const id of VIEWS) document.getElementById(id).hidden = id !== v;
     document.querySelectorAll('.views a').forEach((a) => { if (a.getAttribute('href') === '#' + v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     if (!started[v]) { started[v] = true; START[v].start(); }
