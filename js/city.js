@@ -2,6 +2,8 @@
 // City: bayarea.lessane.es (or ?city=bay, or <meta name="msm-city" content="bay">) is the Bay; anything else is Madrid.
 // Language: ?lang=es|en (remembered), else the saved choice, else the browser's language (Spanish or English).
 window.CITY = (() => {
+  // Files that ship with the site resolve against this script, so they load from madrid.lessane.es on every edition.
+  const asset = (path) => new URL('../' + path, document.currentScript?.src || location.href).href;
   const q = new URLSearchParams(location.search);
   const metaCity = document.querySelector('meta[name="msm-city"]')?.content;
   const id = q.get('city') === 'bay' || metaCity === 'bay' || /^bay(area)?\./.test(location.hostname) ? 'bay' : 'madrid';
@@ -39,6 +41,7 @@ window.CITY = (() => {
     tz: 'America/Los_Angeles', center: [37.7749, -122.4194], zoom: 12,
     pulso: { lat: 37.745, lon: -122.37, w: 38, h: 24, wn: 22, hn: 32, min: .45 },
     graph: 'https://raw.githubusercontent.com/lessane-land/estado-madrid/main/graph-bay.json',
+    coast: asset('data/coast-bay.json'),
     gbfs: (feed) => 'https://gbfs.lyft.com/gbfs/2.3/bay/en/' + feed + '.json',
     bike: 'Bay Wheels', rail: ['bart', 'metro', 'rail', 'tram', 'cable', 'ferry'], live: ['bart', 'metro', 'rail', 'tram', 'cable', 'ferry'],
     dashed: ['rail', 'ferry'], thin: ['rail', 'ferry', 'cable'],

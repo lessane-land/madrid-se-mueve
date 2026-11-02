@@ -12,6 +12,7 @@ window.Pulso = (() => {
   const tickEl = document.getElementById('pulsoTicker');
   let W = 0, H = 0, dpr = 1, proj = null, base = null, baseT = null, raf = 0, shownBig = 0;
   let view = d3.zoomIdentity, pointer = null, zoomB = null;
+  let coast = null;   // land rings [[lat, lon], ...] for cities by the sea
   const trains = new Map();
   const ripples = [];
   const lastBikes = new Map();
@@ -49,6 +50,14 @@ window.Pulso = (() => {
     const g = base.getContext('2d'); g.scale(dpr, dpr);
     g.lineCap = 'round'; g.lineJoin = 'round';
     const z = Math.sqrt(view.k);
+    if (coast) {
+      // Land a shade above the night water, and a faint ice line where they meet.
+      g.beginPath();
+      for (const r of coast) r.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+      g.closePath();
+      g.fillStyle = '#141518'; g.fill('evenodd');
+      g.strokeStyle = C.hielo; g.globalAlpha = .22; g.lineWidth = 1.1 * z; g.stroke(); g.globalAlpha = 1;
+    }
     for (const l of state.graph.lines.values()) {
       const thin = CITY.thin.includes(l.m);
       g.strokeStyle = l.color; g.globalAlpha = thin ? .3 : .55; g.lineWidth = (thin ? 1 : 1.8) * z;
@@ -430,6 +439,7 @@ window.Pulso = (() => {
     cv.addEventListener('pointermove', (e) => { if (e.buttons || D.on) return; const r = cv.getBoundingClientRect(); pointer = [e.clientX - r.left, e.clientY - r.top]; kick(); if (still) frame(performance.now()); });
     cv.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') { const r = cv.getBoundingClientRect(); pointer = [e.clientX - r.left, e.clientY - r.top]; kick(); } });
     cv.addEventListener('pointerleave', () => { pointer = null; tipEl.hidden = true; kick(); });
+    if (CITY.coast) fetch(CITY.coast).then((r) => r.json()).then((j) => { coast = j.rings; bake(); kick(); }).catch(() => {});
     on('graph', () => { bake(); kick(); words(); });
     on('bikes', onBikes);
     on('status', (s) => {
