@@ -118,7 +118,7 @@
     await safe('graph', loadGraph);
     await Promise.all([safe('status', loadStatus), safe('bikes', loadBikes), safe('trains', loadTrains), safe('episodes', loadEpisodes)]);
     every(15000, 'trains', loadTrains);
-    every(60000, 'bikes', loadBikes);
+    every(30000, 'bikes', loadBikes);
     every(120000, 'status', loadStatus);
     every(600000, 'episodes', loadEpisodes);
   }
