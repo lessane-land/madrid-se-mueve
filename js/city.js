@@ -1,10 +1,10 @@
 // City and language. Loaded first. One codebase, two cities (Madrid, SF Bay Area), two languages (es, en).
-// City: bay.lessane.es (or ?city=bay, or <meta name="msm-city" content="bay">) is the Bay; anything else is Madrid.
+// City: bayarea.lessane.es (or ?city=bay, or <meta name="msm-city" content="bay">) is the Bay; anything else is Madrid.
 // Language: ?lang=es|en (remembered), else the saved choice, else the browser's language (Spanish or English).
 window.CITY = (() => {
   const q = new URLSearchParams(location.search);
   const metaCity = document.querySelector('meta[name="msm-city"]')?.content;
-  const id = q.get('city') === 'bay' || metaCity === 'bay' || /^bay\./.test(location.hostname) ? 'bay' : 'madrid';
+  const id = q.get('city') === 'bay' || metaCity === 'bay' || /^bay(area)?\./.test(location.hostname) ? 'bay' : 'madrid';
   let lang = q.get('lang');
   try {
     if (lang === 'es' || lang === 'en') localStorage.setItem('msm.lang', lang);
@@ -15,7 +15,7 @@ window.CITY = (() => {
   const locale = lang === 'en' ? 'en-US' : 'es-ES';
 
   const madrid = {
-    id: 'madrid', name: 'Madrid', title: 'Madrid se mueve', site: 'madrid.lessane.es', other: { name: 'Bay Area', url: 'https://bay.lessane.es/' },
+    id: 'madrid', name: 'Madrid', title: 'Madrid se mueve', site: 'madrid.lessane.es', other: { name: 'Bay Area', url: 'https://bayarea.lessane.es/' },
     tz: 'Europe/Madrid', center: [40.4168, -3.7038], zoom: 12,
     pulso: { lat: 40.425, lon: -3.695, w: 30, h: 19, wn: 17, hn: 24, min: 1 },
     graph: 'https://raw.githubusercontent.com/lessane-land/estado-madrid/main/graph-app.json',
@@ -35,7 +35,7 @@ window.CITY = (() => {
   };
 
   const bay = {
-    id: 'bay', name: L('la Bahía', 'the Bay Area'), title: 'Bay Area se mueve', site: 'bay.lessane.es', other: { name: 'Madrid', url: 'https://madrid.lessane.es/' },
+    id: 'bay', name: L('la Bahía', 'the Bay Area'), title: 'Bay Area se mueve', site: 'bayarea.lessane.es', other: { name: 'Madrid', url: 'https://madrid.lessane.es/' },
     tz: 'America/Los_Angeles', center: [37.7749, -122.4194], zoom: 12,
     pulso: { lat: 37.745, lon: -122.37, w: 38, h: 24, wn: 22, hn: 32, min: .45 },
     graph: 'https://raw.githubusercontent.com/lessane-land/estado-madrid/main/graph-bay.json',
