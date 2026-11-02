@@ -303,3 +303,6 @@ body.screen-map.night .leaflet-overlay-pane, body.screen-map.night .leaflet-mark
 /* ?pantalla: kiosk for the macOS screen saver and big screens */
 body.kiosk #dirExit { display: none !important; }
 body.kiosk, body.kiosk * { cursor: none !important; }
+
+/* Bay: express lane and bridge price tags */
+.toll { display: inline-block; transform: translate(-50%, -50%); font: 700 11px/1 var(--count); color: var(--ink); background: var(--ambar); border: 1.5px solid var(--ink); border-radius: 6px; padding: 3px 5px; white-space: nowrap; }

@@ -42,6 +42,12 @@ window.Mapa = (() => {
       const t = document.createElement('span'); t.textContent = it.title.length > 150 ? it.title.slice(0, 147) + '...' : it.title;
       d.append(p, t); list.append(d);
     }
+    for (const a of (state.bikes?.alerts ?? []).slice(0, 3)) {
+      const d = document.createElement('div'); d.className = 'st';
+      const p = document.createElement('span'); p.className = 'pill'; p.style.background = C.verde; p.style.color = C.ink; p.textContent = CITY.bike;
+      const t = document.createElement('span'); t.textContent = a.summary || a.description || '';
+      d.append(p, t); list.append(d);
+    }
     if (!items.length) { const d = document.createElement('div'); d.className = 'st'; const p = document.createElement('span'); p.className = 'pill'; p.style.background = C.verde; p.textContent = 'OK'; const t = document.createElement('span'); t.textContent = T('Ninguna línea con avisos.', 'No line has alerts.'); d.append(p, t); list.append(d); }
   }
 
@@ -53,7 +59,33 @@ window.Mapa = (() => {
       L.circleMarker([b.lat, b.lon], { pane: 'bikes', radius: bikeR(b.n), color: C.ink, weight: 1, fillColor: col, fillOpacity: .9, bikes: b.n })
         .bindTooltip(tip(CITY.bike, T(`${b.name}: ${b.n} bicis, ${b.docks} anclajes libres`, `${b.name}: ${b.n} bikes, ${b.docks} free docks`))).addTo(layers.bikes);
     }
-    $('mBikes').textContent = fmt.format(state.bikes.free);
+    for (const e of state.bikes.ebikes ?? []) L.circleMarker([e.lat, e.lon], { pane: 'bikes', radius: 2.2, color: C.hielo, weight: 0, fillColor: C.hielo, fillOpacity: .9 })
+      .bindTooltip(tip(CITY.bike, T('E-bike aparcada en la calle', 'E-bike parked on the street'))).addTo(layers.bikes);
+    $('mBikes').textContent = fmt.format(state.bikes.free + (state.bikes.ebikes?.length ?? 0));
+    if (state.status) drawStatus();
+  }
+
+  // The Bay's roads: closures happening now, and the price of each express lane and bridge right now.
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  function drawRoads() {
+    if (!layers.roads) return;
+    layers.roads.clearLayers();
+    const style = { closed: [C.rojo, 4, null, T('Cortada', 'Closed')], lanes: [C.ambar, 3, '6 5', T('Carriles cortados', 'Lanes closed')], detour: [C.hielo, 2.5, '2 6', T('Desvío', 'Detour')] };
+    let n = 0;
+    for (const r of state.roads.roads) {
+      const [color, weight, dash, word] = style[r.kind] || style.lanes;
+      const where = [r.road, r.dir, r.from && r.to ? `${r.from} - ${r.to}` : ''].filter(Boolean).join(' · ');
+      const shape = r.path.length > 1 ? L.polyline(r.path, { pane: 'alerts', color, weight, dashArray: dash, opacity: .95, lineCap: 'round' }) : L.circleMarker(r.path[0], { pane: 'alerts', radius: 5, color, weight: 2, fillColor: C.ink, fillOpacity: 1 });
+      shape.bindTooltip(tip(word, where + (r.text ? ` · ${r.text}` : '')), { sticky: true }).addTo(layers.roads); n++;
+    }
+    for (const t of state.roads.tolls) {
+      const top = t.to.reduce((a, b) => (b.price > a.price ? b : a), t.to[0]);
+      if (!top) continue;
+      const lines = t.to.map((x) => `${x.name}: ${usd.format(x.price)}`).join(' · ');
+      L.marker([t.lat, t.lon], { pane: 'vehicles', icon: L.divIcon({ className: '', html: `<span class="toll">${usd.format(top.price)}</span>`, iconSize: [0, 0] }) })
+        .bindTooltip(tip(t.program, `${t.name} · ${lines}`)).addTo(layers.roads);
+    }
+    const el = $('mRoads'); if (el) el.textContent = fmt.format(n);
   }
 
   function glide(m, to, ms) {
@@ -191,6 +223,14 @@ window.Mapa = (() => {
     }]);
     const te = fresh('anytrain', 2) && ev.find((e) => e.kind === 'train' && tr?.has(e.trainId) && fresh('tr' + e.trainId + e.stop, 20));
     if (te) list.push(['tr' + te.trainId + te.stop, () => { D.shown.set('anytrain', Date.now()); const t = tr.get(te.trainId); flyTo(t.cur, 15); caption(te.label || te.line, T(`Parado en ${te.stop}`, `Stopped at ${te.stop}`), T(`${tr.size} trenes rodando por ${CITY.name} ahora mismo`, `${tr.size} trains running across ${CITY.name} right now`), t.color); }]);
+    if (CITY.id === 'bay') {
+      const pc = (state.trains?.list ?? []).map((t) => [t, state.graph?.lines.get(t.lineId)]).find(([t, l]) => (l?.m === 'ferry' || l?.m === 'cable') && fresh('pc' + l.m, 5));
+      if (pc) { const [t, l] = pc; list.push(['pc' + l.m, () => { flyTo([t.lat, t.lon], l.m === 'ferry' ? 14 : 17); caption(l.m === 'ferry' ? T('Ferry · cruzando la Bahía', 'Ferry · crossing the Bay') : 'Cable car', l.n || l.b, t.stop ? T(`Hacia ${t.stop}`, `Heading to ${t.stop}`) : '', l.color); }]); }
+      const shut = (state.roads?.roads ?? []).find((r) => r.kind === 'closed' && r.road && fresh('rd' + r.id, 30));
+      if (shut) list.push(['rd' + shut.id, () => { flyTo(shut.path[0], 16); caption(T('Calle cortada', 'Road closed'), shut.road, [shut.dir, shut.text].filter(Boolean).join(' · '), C.rojo); }]);
+      const tolls = (state.roads?.tolls ?? []).map((t) => ({ t, top: Math.max(...t.to.map((x) => x.price)) })).filter((x) => x.top > 0).sort((a, b) => b.top - a.top);
+      if (tolls[0] && fresh('toll', 20)) { const { t, top } = tolls[0]; list.push(['toll', () => { flyTo([t.lat, t.lon], 14); caption(T('Peaje ahora', 'Toll right now'), `${t.program} · ${usd.format(top)}`, t.to.map((x) => `${x.name} ${usd.format(x.price)}`).join(' · '), C.ambar); }]); }
+    }
     const be = ev.find((e) => (e.kind === 'bike' || e.kind === 'bikeout') && fresh('bk' + e.station + e.at, 30));
     if (be) list.push(['bk' + be.station + be.at, () => { const st = state.bikes?.list.find((b) => b.id === be.station); flyTo([be.lat, be.lon], 17); caption(CITY.bike, `${st?.name ?? T('Estación', 'Station')} · ${be.d > 0 ? '+' : ''}${be.d} ${T('bicis', 'bikes')}`, st ? T(`${st.n} bicis y ${st.docks} anclajes libres ahora`, `${st.n} bikes and ${st.docks} free docks now`) : '', be.d > 0 ? C.verde : C.ambar); }]);
     if (D.n % 3 === 0 || !list.length) {
@@ -228,6 +268,7 @@ window.Mapa = (() => {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'dark-tiles', attribution: `&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · ${T('Datos', 'Data')}: ${CITY.sources}` }).addTo(map);
     map.createPane('lines').style.zIndex = 410; map.createPane('alerts').style.zIndex = 420; map.createPane('bikes').style.zIndex = 430; map.createPane('vehicles').style.zIndex = 650;
     layers = { metro: L.layerGroup().addTo(map), trains: L.layerGroup().addTo(map), buses: L.layerGroup().addTo(map), bikes: L.layerGroup().addTo(map) };
+    if (CITY.id === 'bay') layers.roads = L.layerGroup().addTo(map);
     alerts = L.layerGroup().addTo(map); focusLayer = L.layerGroup().addTo(map); savedLayer = L.layerGroup().addTo(map);
     MiMadrid.attachSearch($('mapSearch'), focusPlace); MiMadrid.onPlaces(paintSaved); paintSaved();
     document.querySelectorAll('[data-map-screen]').forEach((b) => b.addEventListener('click', enterScreen));
@@ -242,7 +283,7 @@ window.Mapa = (() => {
     map.on('moveend', () => { clearTimeout(busTimer); busTimer = setTimeout(loadBuses, 400); });
     setInterval(() => { if (!$('mapa').hidden && !document.hidden && map.getZoom() >= BUS_ZOOM) loadBuses(); }, 20000);
     on('graph', () => { drawLines(); if (pending) { focus(pending); pending = null; } if (pendingPlace) { const p = pendingPlace; pendingPlace = null; setTimeout(() => focusPlace(p), 400); } });
-    on('status', drawStatus); on('bikes', drawBikes); on('trains', drawTrains);
+    on('status', drawStatus); on('bikes', drawBikes); on('trains', drawTrains); on('roads', drawRoads);
     on('buses', () => { if (!CITY.busStops && map.getZoom() >= BUS_ZOOM && map.hasLayer(layers.buses)) drawAllBuses(); });
   }
   return { start, focusPlace, enterScreen, shown: (arg) => { setTimeout(() => { map.invalidateSize(); if (arg) focus(arg); if (pendingPlace && state.graph) { const p = pendingPlace; pendingPlace = null; focusPlace(p); } }, 60); } };

@@ -32,7 +32,7 @@ window.CITY = (() => {
     sources: 'CRTM, Renfe, EMT, BiciMAD',
     sourceNote: L('Estado: el mismo que usa Madrid hoy, del Consorcio y Renfe. Trenes: posiciones de Renfe en vivo. 30 días: tramos de problemas que ha guardado el servidor de Madrid hoy.',
       'Status: the same feed Madrid hoy uses, from the regional transport authority and Renfe. Trains: live Renfe positions. 30 days: trouble stretches recorded by the Madrid hoy server.'),
-    search: L('Busca un sitio: Atocha, Lavapiés, tu calle', 'Search a place: Atocha, Lavapiés, your street'),
+    search: L('Busca un sitio: Atocha, Lavapiés, tu calle', 'Search: Atocha, Lavapiés, your street'),
     busOperator: 'EMT',
   };
 
@@ -56,7 +56,7 @@ window.CITY = (() => {
     sources: '511 SF Bay, Bay Wheels',
     sourceNote: L('Estado: avisos de servicio de 511 SF Bay, de todos los operadores. Trenes: posiciones en vivo de 511, cada 90 segundos.',
       'Status: 511 SF Bay service alerts, every operator. Trains: live 511 positions, every 90 seconds.'),
-    search: L('Busca un sitio: Embarcadero, Mission, tu calle', 'Search a place: Embarcadero, the Mission, your street'),
+    search: L('Busca: Embarcadero, Mission, tu calle', 'Search: Embarcadero, Mission, your street'),
     busOperator: 'Muni, AC Transit',
   };
 

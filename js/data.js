@@ -12,7 +12,7 @@
   const C = { ink: '#0A0A0A', panel: '#141413', line: '#2A2A28', paper: '#F5F5F0', mute: '#8A8A82', hielo: '#8FD3FF', verde: '#5BE38A', ambar: '#FFB547', rojo: '#FF5A5F', tren: '#FFD27A' };
 
   const subs = {};
-  const state = { graph: null, status: null, bikes: null, trains: null, buses: null, episodes: null, ok: {} };
+  const state = { graph: null, status: null, bikes: null, trains: null, buses: null, roads: null, episodes: null, ok: {} };
   const emit = (k) => (subs[k] || []).forEach((f) => { try { f(state[k], state); } catch (e) { console.error(e); } });
   const on = (k, f) => { (subs[k] = subs[k] || []).push(f); if (state[k]) f(state[k], state); };
 
@@ -53,7 +53,7 @@
       lines.set(l.i, line);
     }
     const routes = new Map((g.routes ?? []).map((r) => [r.i, r]));
-    state.graph = { stops, lines, canon, routes, agencies: g.agencies, emt: g.stops.filter((s) => s.m === 'emt'),
+    state.graph = { stops, lines, canon, routes, agencies: g.agencies, alias: g.alias ?? {}, emt: g.stops.filter((s) => s.m === 'emt'),
       railStops: BAY ? g.stops : g.stops.filter((s) => s.m === 'metro' || s.m === 'metro_ligero') };
     emit('graph');
   }
@@ -121,7 +121,13 @@
       const ok = !!s.is_renting && (s.status ? s.status === 'IN_SERVICE' : s.is_installed !== 0);
       list.push({ id: s.station_id, name: i.name.replace(/^\d+\s*-\s*/, ''), lat: i.lat, lon: i.lon, n: s.num_bikes_available, docks: s.num_docks_available, ok });
     }
-    state.bikes = { list, free: list.reduce((a, b) => a + (b.ok ? b.n : 0), 0), at: Date.now() };
+    // Bay Wheels also leaves e-bikes parked on the street, outside any dock, and posts its own alerts.
+    let ebikes = [], alerts = [];
+    if (BAY) {
+      try { ebikes = (await (await fetch(CITY.gbfs('free_bike_status'))).json()).data.bikes.filter((b) => !b.is_disabled && !b.is_reserved).map((b) => ({ lat: b.lat, lon: b.lon })); } catch {}
+      try { alerts = (await (await fetch(CITY.gbfs('system_alerts'))).json()).data.alerts ?? []; } catch {}
+    }
+    state.bikes = { list, ebikes, alerts, free: list.reduce((a, b) => a + (b.ok ? b.n : 0), 0), at: Date.now() };
     emit('bikes');
   }
 
@@ -136,6 +142,55 @@
       return { ...t, lineId: l?.i ?? null, stop: state.graph?.stops.get('cercanias:' + t.stop)?.n ?? null };
     });
     state.trains = { list, at: d.at };
+    emit('trains');
+  }
+
+  // BART sends no positions, only each trip's next arrivals. Place each train between the station it left and the
+  // next one, by time, along the line's real track. Recomputed every few seconds so the trains keep moving.
+  const KM = (a, b) => Math.hypot((b[1] - a[1]) * 88.0, (b[0] - a[0]) * 111.0);
+  function trackOf(l) {
+    if (!l._cum) { let d = 0; l._cum = l.path.map((p, i) => (i ? (d += KM(l.path[i - 1], p)) : 0)); }
+    return l;
+  }
+  function onTrack(l, lat, lon) { let best = 1e9, bi = 0; l.path.forEach((p, i) => { const d = KM(p, [lat, lon]); if (d < best) { best = d; bi = i; } }); return l._cum[bi]; }
+  function atKm(l, km) {
+    const c = l._cum, n = c.length; let lo = 0, hi = n - 1; km = Math.max(c[0], Math.min(c[n - 1], km));
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (c[m] <= km) lo = m; else hi = m; }
+    const k = c[hi] > c[lo] ? (km - c[lo]) / (c[hi] - c[lo]) : 0, a = l.path[lo], b = l.path[hi];
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
+  }
+  function bartTrains() {
+    const g = state.graph, trips = state._bart ?? [], now = Date.now() / 1000, out = [];
+    if (!g) return out;
+    const station = (id) => g.stops.get(g.alias[id] || id) || g.stops.get(id);
+    for (const t of trips) {
+      const l = bayLine('BA', t.r); if (!l || l.path.length < 2) continue;
+      trackOf(l);
+      const u = t.u.map(([id, arr, dep]) => ({ st: station(id), arr, dep })).filter((x) => x.st);
+      if (!u.length) continue;
+      let k = u.findIndex((x) => x.dep >= now);
+      if (k < 0) continue;                                     // trip already done
+      const next = u[k];
+      let pos, status;
+      if (next.arr <= now) { pos = [next.st.la, next.st.lo]; status = 'STOPPED_AT'; }
+      else {
+        const seq = l.s, i = seq.indexOf(next.st.i);
+        const prevSt = k > 0 ? u[k - 1].st : i > 0 ? g.stops.get(seq[i - 1]) : null;
+        if (!prevSt) { pos = [next.st.la, next.st.lo]; status = 'INCOMING_AT'; }
+        else {
+          const a = onTrack(l, prevSt.la, prevSt.lo), b = onTrack(l, next.st.la, next.st.lo);
+          const run = Math.max(60, Math.abs(b - a) / 55 * 3600 + 20);   // about 55 km/h between stations
+          const left = k > 0 ? u[k - 1].dep : next.arr - run;
+          const f = Math.max(0, Math.min(1, (now - left) / Math.max(30, next.arr - left)));
+          pos = atKm(l, a + (b - a) * f); status = 'IN_TRANSIT_TO';
+        }
+      }
+      out.push({ id: 'BA:' + t.id, line: l.b, lineId: l.i, lat: pos[0], lon: pos[1], status, stop: next.st.n });
+    }
+    return out;
+  }
+  function mergeTrains() {
+    state.trains = { list: [...(state._rail ?? []), ...bartTrains()], at: Date.now() };
     emit('trains');
   }
 
@@ -159,9 +214,18 @@
         buses.push({ bus: v.a + ':' + v.id, line: rt?.b || v.r.split(':').pop() || '?', dest: rt?.n || '', color: rt?.c || C.hielo, op: OPS[v.a] || state.graph?.agencies?.[v.a] || v.a, lat: v.lat, lon: v.lon, secs: null });
       }
     }
-    state.trains = { list: trains, at: d.at };
+    state._rail = trains; state._bart = d.bart ?? [];
     state.buses = { list: buses, at: d.at };
-    emit('trains'); emit('buses');
+    mergeTrains(); emit('buses');
+  }
+
+  // The Bay's roads: closures happening now and express lane and bridge tolls.
+  async function loadRoads() {
+    const r = await fetch(CFG.VIVO + '?city=bay&what=roads', { headers: CFG.auth });
+    if (!r.ok) throw new Error('vivo ' + r.status);
+    const d = await r.json();
+    state.roads = { roads: d.roads ?? [], tolls: d.tolls ?? [], at: d.at };
+    emit('roads');
   }
 
   async function loadEpisodes() {
@@ -187,6 +251,7 @@
     every(30000, 'bikes', loadBikes);
     every(BAY ? 300000 : 120000, 'status', loadStatus);
     if (CITY.episodes) every(600000, 'episodes', loadEpisodes);
+    if (BAY) { safe('roads', loadRoads); every(600000, 'roads', loadRoads); setInterval(() => { if (!document.hidden && state._bart?.length) mergeTrains(); }, 5000); }
   }
 
   window.MSM = { CFG, C, state, on, start, busesNear, decode, norm, cleanTitle, lineFor };

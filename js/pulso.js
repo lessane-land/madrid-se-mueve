@@ -51,12 +51,15 @@ window.Pulso = (() => {
     g.lineCap = 'round'; g.lineJoin = 'round';
     const z = Math.sqrt(view.k);
     if (coast) {
-      // Land a shade above the night water, and a faint ice line where they meet.
-      g.beginPath();
-      for (const r of coast) r.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); });
-      g.closePath();
-      g.fillStyle = '#141518'; g.fill('evenodd');
-      g.strokeStyle = C.hielo; g.globalAlpha = .22; g.lineWidth = 1.1 * z; g.stroke(); g.globalAlpha = 1;
+      // The water as a faint field of dots, the land left dark, and a hairline where they meet.
+      const shore = () => { g.beginPath(); for (const r of coast) r.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
+      g.save();
+      shore(); g.rect(-20, -20, W + 40, H + 40); g.clip('evenodd');
+      g.fillStyle = C.hielo; g.globalAlpha = .2;
+      const step = 7, d = 1.4;
+      for (let y = 3; y < H; y += step) for (let x = (y / step) % 2 ? 3 : 6.5; x < W; x += step) g.fillRect(x, y, d, d);
+      g.restore();
+      shore(); g.strokeStyle = C.hielo; g.globalAlpha = .4; g.lineWidth = 1.2; g.stroke(); g.globalAlpha = 1;
     }
     for (const l of state.graph.lines.values()) {
       const thin = CITY.thin.includes(l.m);
@@ -74,11 +77,23 @@ window.Pulso = (() => {
         g.drawImage(glowBike, x - r, y - r, r * 2, r * 2);
       }
       g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      // E-bikes parked on the street: small cold sparks between the docks.
+      g.fillStyle = C.hielo; g.globalAlpha = .8;
+      for (const e of state.bikes.ebikes ?? []) { const [x, y] = P(e.lat, e.lon); if (x < 0 || y < 0 || x > W || y > H) continue; g.fillRect(x - .9 * z, y - .9 * z, 1.8 * z, 1.8 * z); }
+      g.globalAlpha = 1;
       for (const b of state.bikes.list) {
         const [x, y] = P(b.lat, b.lon);
         g.fillStyle = b.n ? '#D8FFE6' : '#3A3A36';
         g.beginPath(); g.arc(x, y, (b.n ? 1.3 : .9) * z, 0, 6.283); g.fill();
       }
+    }
+    // Roads closed in every lane right now: short red strokes.
+    for (const r of state.roads?.roads ?? []) {
+      if (r.kind !== 'closed' || r.path.length < 1) continue;
+      g.strokeStyle = C.rojo; g.globalAlpha = .85; g.lineWidth = 2.2 * z;
+      g.beginPath(); r.path.forEach(([a, b], i) => { const [x, y] = P(a, b); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+      if (r.path.length === 1) { const [x, y] = P(...r.path[0]); g.arc(x, y, 2 * z, 0, 6.283); }
+      g.stroke();
     }
     g.globalAlpha = 1;
   }
@@ -269,7 +284,7 @@ window.Pulso = (() => {
       const cur = old?.cur || [x.lat, x.lon];
       const color = gl ? gl.color : C.tren;
       const t = old || { trail: [], id: x.id };
-      Object.assign(t, { line: x.line, label, color, where, l: s != null ? l : null, at: now, from: cur, to: [x.lat, x.lon], cur });
+      Object.assign(t, { line: x.line, lineId: x.lineId, label, color, where, l: s != null ? l : null, at: now, from: cur, to: [x.lat, x.lon], cur });
       if (s != null) {
         const s0 = old?.l === l ? (old.dispS ?? s) : s;
         const dt = old && old.repAt ? (Date.now() - old.repAt) / 1000 : 0;
@@ -364,6 +379,17 @@ window.Pulso = (() => {
       const t = trains.get(tr.trainId); fly(t.cur[0], t.cur[1], 4.5, 4200);
       caption(tr.label || tr.line, L(`Parado en ${tr.stop}`, `Stopped at ${tr.stop}`), L(`${trains.size} trenes rodando por ${CITY.name} ahora mismo`, `${trains.size} trains running across ${CITY.name} right now`), t.color);
     } });
+    // The Bay's postcards: a ferry crossing the water, a cable car on its hill.
+    for (const t of trains.values()) {
+      const gl = state.graph?.lines.get(t.lineId ?? '');
+      const m = gl?.m;
+      if ((m !== 'ferry' && m !== 'cable') || !fresh('pc' + m, 4) || !t.cur) continue;
+      list.push({ key: 'pc' + m, run: () => {
+        fly(t.cur[0], t.cur[1], m === 'ferry' ? 3.2 : 5.5, 4200);
+        caption(m === 'ferry' ? L('Ferry · cruzando la Bahía', 'Ferry · crossing the Bay') : 'Cable car', gl.n || gl.b, cap(t.where), gl.color);
+      } });
+      break;
+    }
     const bk = events.find((e) => (e.kind === 'bike' || e.kind === 'bikeout') && fresh('bk' + e.station + e.at, 30));
     if (bk) list.push({ key: 'bk' + bk.station + bk.at, run: () => {
       const st = state.bikes?.list.find((b) => b.id === bk.station);
@@ -448,6 +474,7 @@ window.Pulso = (() => {
       words(); kick();
     });
     on('trains', (t) => onTrains(t.list));
+    on('roads', () => { bake(); kick(); });
     on('health', when);
     applyNight(); setInterval(() => { when(); applyNight(); }, 30000);
   }
