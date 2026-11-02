@@ -116,7 +116,8 @@ window.Mapa = (() => {
     if (!stopLayer) stopLayer = L.layerGroup().addTo(layers.buses);
     if (!state.graph || map.getZoom() < BUS_ZOOM || !map.hasLayer(layers.buses)) {
       stopLayer.clearLayers(); for (const m of busMarks.values()) layers.buses.removeLayer(m); busMarks.clear();
-      $('mBuses').textContent = '0'; $('mHint').hidden = false; return;
+      // Buses load from street zoom: say so instead of a misleading 0.
+      $('mBuses').textContent = !map.hasLayer(layers.buses) ? '-' : T('acerca', 'zoom in'); $('mHint').hidden = false; return;
     }
     $('mHint').hidden = true;
     if (!CITY.busStops) return drawAllBuses();
@@ -162,11 +163,31 @@ window.Mapa = (() => {
     $('mBuses').textContent = fmt.format(busMarks.size);
   }
 
+  // Back from a focused line to the whole map: a chip by the search, and the Map tab itself.
+  let focused = null;
+  function showBack() {
+    let chip = $('mapBack');
+    if (!chip) {
+      chip = document.createElement('button'); chip.id = 'mapBack'; chip.type = 'button'; chip.className = 'toggle back-chip';
+      chip.onclick = () => unfocus(true);
+      document.querySelector('.map-layers').prepend(chip);
+    }
+    chip.hidden = !focused;
+    if (focused) chip.textContent = T(`${focused.b} · Ver todo el mapa`, `${focused.b} · See the whole map`);
+  }
+  function unfocus(fly) {
+    if (!focused) return;
+    focused = null; focusLayer.clearLayers(); showBack();
+    if (location.hash !== '#mapa') history.replaceState(null, '', '#mapa');
+    if (fly) map.flyTo(CITY.center, CITY.zoom, { duration: still ? 0 : 1.2 });
+  }
+
   function focus(b) {
     if (!map || !state.graph) { pending = b; return; }
     const l = [...state.graph.lines.values()].find((x) => x.b === b && !x.dup);
     if (!l) return;
     focusLayer.clearLayers();
+    focused = l; showBack();
     L.polyline(l.path, { pane: 'alerts', color: C.hielo, weight: 14, opacity: .35, lineCap: 'round' }).addTo(focusLayer);
     L.polyline(l.path, { pane: 'alerts', color: l.color, weight: 6, opacity: 1, lineCap: 'round' }).addTo(focusLayer);
     map.flyToBounds(L.latLngBounds(l.path), { padding: [60, 60], duration: still ? 0 : 1.2 });
@@ -297,5 +318,5 @@ window.Mapa = (() => {
     on('status', drawStatus); on('bikes', drawBikes); on('trains', drawTrains); on('roads', drawRoads);
     on('buses', () => { if (!CITY.busStops && map.getZoom() >= BUS_ZOOM && map.hasLayer(layers.buses)) drawAllBuses(); });
   }
-  return { start, focusPlace, enterScreen, shown: (arg) => { setTimeout(() => { map.invalidateSize(); if (arg) focus(arg); if (pendingPlace && state.graph) { const p = pendingPlace; pendingPlace = null; focusPlace(p); } }, 60); } };
+  return { start, focusPlace, enterScreen, shown: (arg) => { setTimeout(() => { map.invalidateSize(); if (arg) focus(arg); else unfocus(true); if (pendingPlace && state.graph) { const p = pendingPlace; pendingPlace = null; focusPlace(p); } }, 60); } };
 })();

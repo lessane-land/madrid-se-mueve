@@ -26,7 +26,10 @@ window.Extras = (() => {
     const r = await fetch(`${CFG.VIVO}?city=bay&what=ships`, { headers: CFG.auth });
     if (!r.ok) return;
     const d = await r.json(), now = performance.now();
-    X.ships = (d.ships ?? []).map((s) => ({ ...s, t0: now }));
+    // Moored ships report every few minutes, so keep every ship heard in the last 30 minutes.
+    const all = new Map(X.ships.filter((s) => Date.now() - (s.at ?? 0) < 1800000).map((s) => [s.id, s]));
+    for (const s of d.ships ?? []) all.set(s.id, { ...all.get(s.id), ...s, name: s.name || all.get(s.id)?.name || '', t0: now });
+    X.ships = [...all.values()];
     changed('ships');
   }
   async function quakes() {

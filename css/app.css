@@ -317,3 +317,8 @@ body.kiosk, body.kiosk * { cursor: none !important; }
 .note a.coffee { color: var(--mute); text-decoration: none; }
 .note a.coffee:hover { color: var(--paper); }
 body.screen .coffee, body.screen-map .coffee, body.kiosk .coffee { display: none; }
+
+/* Back from a focused line */
+.back-chip { color: var(--ink) !important; background: var(--hielo) !important; border-color: var(--hielo) !important; font-weight: 600; }
+.back-chip::before { content: '\2190'; margin-right: 6px; }
+.back-chip[hidden] { display: none; }
