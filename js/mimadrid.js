@@ -1,23 +1,19 @@
-// Mi Madrid: your places and your lines, answered in big blocks. Saved only in this browser.
+// Places: search anything in Madrid, see what is happening right there, save the places you care about.
+// The search lives on Mapa and Pulso; the place card lives on Mapa; saved places feed screen mode.
 window.MiMadrid = (() => {
   const { C, on, state, norm } = MSM;
-  const $ = (id) => document.getElementById(id);
   const KEY = 'msm.mimadrid.v1';
   const fmt = new Intl.NumberFormat('es', { useGrouping: 'always' });
   const M = (a, b) => { const dx = (b.lon - a.lon) * 85000, dy = (b.lat - a.lat) * 111000; return Math.hypot(dx, dy); };
-  let cfg = load(), busCache = new Map(), busTimer = 0, index = null;
-
-  function load() { try { return JSON.parse(localStorage.getItem(KEY)) || { places: [], lines: [], buses: '' }; } catch { return { places: [], lines: [], buses: '' }; } }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch {} }
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  const light = (hex) => { const n = parseInt(hex.slice(1), 16); return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150; };
+  let cfg = load(), busCache = new Map(), index = null;
+  const listeners = [];
 
-  function nearestBike(p) {
-    let best = null;
-    for (const b of state.bikes?.list ?? []) { if (!b.ok) continue; const m = M(p, b); if (!best || m < best.m) best = { ...b, m }; }
-    return best;
-  }
+  function load() { try { return { places: [], lines: [], buses: '', ...JSON.parse(localStorage.getItem(KEY)) }; } catch { return { places: [], lines: [], buses: '' }; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch {} listeners.forEach((f) => f(cfg.places)); }
+
   function nearBikes(p, n) { return (state.bikes?.list ?? []).filter((b) => b.ok).map((b) => ({ ...b, m: M(p, b) })).sort((a, b) => a.m - b.m).slice(0, n); }
+  function nearestBike(p) { return nearBikes(p, 1)[0] || null; }
   function nearStops(p, mode, max, n) {
     return (mode === 'emt' ? state.graph?.emt ?? [] : [...(state.graph?.stops.values() ?? [])].filter((s) => s.m === mode))
       .map((s) => ({ s, m: M(p, { lat: s.la, lon: s.lo }) })).filter((x) => x.m <= max).sort((a, b) => a.m - b.m).slice(0, n);
@@ -25,14 +21,14 @@ window.MiMadrid = (() => {
   function lineState(id) {
     const items = (state.status?.items ?? []).filter((i) => i.lineId === id);
     const red = items.find((i) => i.red);
-    if (red) return { word: 'Cortada', color: C.rojo, text: red.scope?.from ? `Entre ${red.scope.from} y ${red.scope.to}.` : red.title };
-    if (items.length) return { word: 'Con avisos', color: C.ambar, text: items[0].title };
-    return { word: 'Normal', color: C.verde, text: 'Sin avisos ahora.' };
+    if (red) return { word: 'cortada', color: C.rojo, text: red.scope?.from ? `${red.scope.from} a ${red.scope.to}` : red.title };
+    if (items.length) return { word: 'avisos', color: C.ambar, text: items[0].title };
+    return { word: 'normal', color: C.verde, text: '' };
   }
 
-  // Search over rail stations, BiciMAD stations and EMT stops.
+  // Search: stations, stops and BiciMAD first, streets from OpenStreetMap after.
   function buildIndex() {
-    if (!state.graph || !state.bikes) return;
+    if (!state.graph || !state.bikes || index) return;
     const seen = new Set(); index = [];
     for (const s of state.graph.stops.values()) {
       if (!['metro', 'metro_ligero', 'cercanias', 'emt'].includes(s.m)) continue;
@@ -42,12 +38,41 @@ window.MiMadrid = (() => {
     }
     for (const b of state.bikes.list) index.push({ name: b.name, kind: 'BiciMAD', lat: b.lat, lon: b.lon, k: norm(b.name), rank: 1 });
   }
-  function search(q) {
+  function local(q) {
     const n = norm(q); if (n.length < 2 || !index) return [];
-    return index.filter((x) => x.k.includes(n)).sort((a, b) => (a.k.startsWith(n) ? 0 : 1) - (b.k.startsWith(n) ? 0 : 1) || a.rank - b.rank || a.k.length - b.k.length).slice(0, 8);
+    return index.filter((x) => x.k.includes(n)).sort((a, b) => (a.k.startsWith(n) ? 0 : 1) - (b.k.startsWith(n) ? 0 : 1) || a.rank - b.rank || a.k.length - b.k.length).slice(0, 6);
+  }
+  async function streets(q) {
+    const u = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=4&accept-language=es&bounded=1&viewbox=-3.95,40.62,-3.45,40.28&q=${encodeURIComponent(q)}`;
+    try { const r = await fetch(u); return (await r.json()).map((x) => ({ name: x.display_name.split(',').slice(0, 2).join(','), kind: 'Calle o lugar', lat: +x.lat, lon: +x.lon })); } catch { return []; }
   }
 
-  // Pick the stops that cover the most bus lines within a short walk; your own lines first.
+  // One search box, used on Mapa and Pulso.
+  function attachSearch(root, onPick) {
+    const input = root.querySelector('input'), list = root.querySelector('.s-hits'), chips = root.querySelector('.s-chips');
+    let t = 0, seq = 0;
+    const show = (hits) => {
+      list.replaceChildren(...hits.map((h) => { const b = el('button', 's-hit'); b.type = 'button'; b.append(el('span', null, h.name), el('small', null, h.kind)); b.onclick = () => { input.value = ''; show([]); input.blur(); onPick(h); }; return b; }));
+      list.hidden = !hits.length;
+    };
+    input.addEventListener('input', () => {
+      const q = input.value.trim(), mine = ++seq; buildIndex();
+      const hits = local(q); show(hits); clearTimeout(t);
+      if (q.length >= 4 && hits.length < 4) t = setTimeout(async () => { const more = await streets(q); if (mine === seq) show([...hits, ...more].slice(0, 7)); }, 450);
+    });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') list.querySelector('.s-hit')?.click(); if (e.key === 'Escape') { input.value = ''; show([]); } });
+    const paintChips = () => {
+      chips.replaceChildren(...cfg.places.map((p) => { const b = el('button', 's-chip', p.label); b.type = 'button'; b.title = p.name; b.onclick = () => onPick(p); return b; }));
+      if (navigator.geolocation) {
+        const g = el('button', 's-chip s-geo', 'Dónde estoy'); g.type = 'button';
+        g.onclick = () => navigator.geolocation.getCurrentPosition((pos) => onPick({ name: 'Mi ubicación', kind: 'Aquí', lat: pos.coords.latitude, lon: pos.coords.longitude }), () => { g.textContent = 'Sin ubicación'; }, { enableHighAccuracy: true, timeout: 10000 });
+        chips.append(g);
+      }
+    };
+    listeners.push(paintChips); paintChips();
+  }
+
+  // Bus stops that together cover the most lines within a short walk; your own bus lines first.
   function busStops(p) {
     const want = new Set(cfg.buses.split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean));
     const near = nearStops(p, 'emt', 600, 40);
@@ -65,121 +90,83 @@ window.MiMadrid = (() => {
     const stops = busStops(p).map((x) => x.s.i.split(':')[1]);
     if (!stops.length) return null;
     const key = stops.join(','), hit = busCache.get(key);
-    if (hit && Date.now() - hit.at < 40000) return hit.list;
+    if (hit && Date.now() - hit.at < 30000) return hit.list;
     try { const list = await MSM.busesNear(stops); busCache.set(key, { at: Date.now(), list }); return list; } catch { return hit?.list ?? null; }
   }
 
-  function renderBlocks() {
-    const grid = $('mmGrid'); grid.replaceChildren();
-    if (!cfg.places.length && !cfg.lines.length) {
-      const empty = el('div', 'mm-empty');
-      empty.append(el('h2', null, 'Empieza por tu casa'), el('p', null, 'Añade tus sitios y tus líneas. Aquí verás de un vistazo si tu línea va bien, cuántas bicis hay en tu estación y cuándo llega tu bus. Se guarda solo en este navegador.'));
-      grid.append(empty); openEdit(true); return;
-    }
-    for (const id of cfg.lines) {
-      const l = state.graph?.lines.get(id); if (!l) continue;
-      const st = lineState(id);
-      const b = el('section', 'mm-block'); b.style.setProperty('--st', st.color);
-      const top = el('div', 'mm-top'); const chip = el('span', 'chip', l.b); chip.style.background = l.color; chip.style.color = light(l.color) ? C.ink : C.paper;
-      top.append(chip, el('span', 'mm-label', l.m === 'cercanias' ? 'Cercanías' : l.m === 'metro' ? 'Metro' : 'Metro Ligero'));
-      b.append(top, el('div', 'mm-big', st.word), el('p', 'mm-text', st.text));
-      if (l.m === 'cercanias') { const n = (state.trains?.list ?? []).filter((t) => t.line === l.b).length; b.append(el('p', 'mm-sub', n ? `${n} tren${n > 1 ? 'es' : ''} rodando ahora` : 'Ningún tren rodando ahora')); }
-      else b.append(el('p', 'mm-sub', l.n || ''));
-      const a = el('a', 'mm-link', 'Ver en el mapa'); a.href = '#mapa-' + l.b; b.append(a);
-      grid.append(b);
-    }
-    for (const p of cfg.places) {
-      const b = el('section', 'mm-block mm-place');
-      const top = el('div', 'mm-top'); top.append(el('span', 'mm-pin'), el('span', 'mm-label', p.label), el('span', 'mm-where', p.name));
-      b.append(top);
-      const bikes = nearBikes(p, 2);
-      if (bikes.length) {
-        const nb = bikes[0], col = nb.n === 0 ? C.rojo : nb.n < 4 ? C.ambar : C.verde;
-        const row = el('div', 'mm-row');
-        const big = el('div', 'mm-big', fmt.format(nb.n)); big.style.color = col;
-        const txt = el('div'); txt.append(el('div', 'mm-text', `bicis en ${nb.name}`), el('div', 'mm-sub', `${nb.docks} anclajes libres · a ${Math.round(nb.m)} m${bikes[1] ? ` · ${bikes[1].n} en ${bikes[1].name}` : ''}`));
-        row.append(big, txt); b.append(row);
-      }
-      const rail = [];
-      for (const mode of ['metro', 'metro_ligero', 'cercanias']) for (const { s, m } of nearStops(p, mode, 750, 2)) rail.push({ s, m });
-      if (rail.length) {
-        const r = el('div', 'mm-rail');
-        const lines = [...new Set(rail.flatMap(({ s }) => s.l))].filter((id) => state.graph.lines.has(id)).slice(0, 8);
-        for (const id of lines) { const l = state.graph.lines.get(id), st = lineState(id); const pill = el('a', 'mm-pill', `${l.b} ${st.word.toLowerCase()}`); pill.href = '#mapa-' + l.b; pill.style.setProperty('--st', st.color); pill.style.setProperty('--lc', l.color); r.append(pill); }
-        b.append(el('div', 'mm-sub', `${rail[0].s.n}, a ${Math.round(rail[0].m)} m`), r);
-      }
-      const bus = el('div', 'mm-bus'); bus.dataset.place = p.id; bus.append(el('div', 'mm-sub', 'Buses de EMT cerca: cargando'));
-      b.append(bus);
-      grid.append(b);
-    }
-    fillBuses();
-  }
+  // The card for a place: what is happening right there, live.
+  function card(p, { onClose } = {}) {
+    const box = el('div', 'pc');
+    const head = el('div', 'pc-head');
+    const saved0 = cfg.places.find((q) => q.id === p.id);
+    const title = el('div'); title.append(el('div', 'pc-kind', saved0 ? 'Tu sitio · ' + saved0.label : p.kind || 'Sitio'), el('div', 'pc-name', p.name));
+    const x = el('button', 'pc-x', 'Cerrar'); x.type = 'button'; x.onclick = () => onClose?.();
+    head.append(title, x); box.append(head);
 
-  async function fillBuses() {
-    const want = cfg.buses.split(/[\s,]+/).map((x) => x.trim().toUpperCase()).filter(Boolean);
-    for (const p of cfg.places) {
-      const box = document.querySelector(`.mm-bus[data-place="${p.id}"]`); if (!box) continue;
+    const bikes = nearBikes(p, 3);
+    if (bikes.length) {
+      const nb = bikes[0], col = nb.n === 0 ? C.rojo : nb.n < 4 ? C.ambar : C.verde;
+      const row = el('div', 'pc-bikes');
+      const big = el('div', 'pc-big', fmt.format(nb.n)); big.style.color = col;
+      const txt = el('div'); txt.append(el('div', 'pc-t', `bicis en ${nb.name}`), el('div', 'pc-s', `${nb.docks} anclajes libres · a ${Math.round(nb.m)} m`));
+      for (const o of bikes.slice(1)) txt.append(el('div', 'pc-s', `${o.n} en ${o.name}, a ${Math.round(o.m)} m`));
+      row.append(big, txt); box.append(row);
+    }
+    const rail = [];
+    for (const mode of ['metro', 'metro_ligero', 'cercanias']) for (const r of nearStops(p, mode, 800, 2)) rail.push(r);
+    rail.sort((a, b) => a.m - b.m);
+    if (rail.length) {
+      const wrap = el('div', 'pc-rail');
+      wrap.append(el('div', 'pc-s', `${rail[0].s.n}, a ${Math.round(rail[0].m)} m`));
+      const pills = el('div', 'pc-pills');
+      for (const id of [...new Set(rail.flatMap(({ s }) => s.l))].filter((id) => state.graph.lines.has(id)).slice(0, 8)) {
+        const l = state.graph.lines.get(id), st = lineState(id);
+        const pill = el('a', 'pc-pill', `${l.b} ${st.word}`); pill.href = '#mapa-' + l.b; pill.title = st.text; pill.style.setProperty('--st', st.color); pill.style.setProperty('--lc', l.color);
+        pills.append(pill);
+      }
+      wrap.append(pills); box.append(wrap);
+    }
+    const busBox = el('div', 'pc-buses'); busBox.append(el('div', 'pc-s', 'Buses llegando: cargando'));
+    box.append(busBox);
+    const fill = async () => {
       const list = await buses(p);
-      box.replaceChildren();
-      if (list == null) { box.append(el('div', 'mm-sub', 'Sin paradas de EMT a menos de 600 m.')); continue; }
-      const rows = list.filter((v) => v.secs != null && (!want.length || want.includes(String(v.line).toUpperCase()))).sort((a, b) => a.secs - b.secs).slice(0, 5);
-      if (!rows.length) { box.append(el('div', 'mm-sub', want.length ? `Ningún ${want.join(', ')} a la vista ahora.` : 'Ningún bus a la vista ahora.')); continue; }
-      const ul = el('ul', 'mm-buses');
+      busBox.replaceChildren();
+      if (list == null) { busBox.append(el('div', 'pc-s', 'Sin paradas de EMT a menos de 600 m.')); return; }
+      const rows = list.filter((v) => v.secs != null).sort((a, b) => a.secs - b.secs).slice(0, 6);
+      if (!rows.length) { busBox.append(el('div', 'pc-s', 'Ningún bus a la vista ahora.')); return; }
+      const ul = el('ul');
       for (const v of rows) {
-        const li = el('li'); const ln = el('span', 'bus', v.line); const t = el('span', 'mm-eta', v.secs < 60 ? 'llegando' : `${Math.round(v.secs / 60)} min`);
         const stop = state.graph?.stops.get('emt:' + v.stop);
-        const dest = el('span', 'mm-dest'); dest.append(document.createTextNode(v.dest), el('small', null, stop ? ` · en ${stop.n}` : ''));
-        li.append(ln, dest, t); ul.append(li);
+        const li = el('li'); const d = el('span', 'pc-dest'); d.append(document.createTextNode(v.dest), el('small', null, stop ? ` · ${stop.n}` : ''));
+        li.append(el('span', 'bus', v.line), d, el('span', 'pc-eta', v.secs < 60 ? 'llegando' : `${Math.round(v.secs / 60)} min`)); ul.append(li);
       }
-      box.append(ul);
+      busBox.append(ul);
+    };
+    fill(); const timer = setInterval(() => { if (box.isConnected) fill(); else clearInterval(timer); }, 30000);
+
+    const foot = el('div', 'pc-foot');
+    if (saved0) {
+      const rm = el('button', 'pc-btn', `Quitar "${saved0.label}"`); rm.type = 'button';
+      rm.onclick = () => { cfg.places = cfg.places.filter((q) => q.id !== saved0.id); save(); onClose?.(); };
+      foot.append(rm);
+    } else {
+      foot.append(el('span', 'pc-s', 'Guardar como'));
+      const name = el('input'); name.type = 'text'; name.placeholder = 'Otro nombre'; name.setAttribute('aria-label', 'Nombre del sitio');
+      const keep = (label) => {
+        label = (label || '').trim(); if (!label) return;
+        cfg.places = cfg.places.filter((q) => q.label !== label);
+        cfg.places.push({ id: Date.now().toString(36), label, name: p.name, lat: p.lat, lon: p.lon }); save();
+        foot.replaceChildren(el('span', 'pc-s', `Guardado como ${label}. El modo pantalla lo visitará.`));
+      };
+      for (const n of ['Casa', 'Trabajo']) { const b = el('button', 'pc-btn', n); b.type = 'button'; b.onclick = () => keep(n); foot.append(b); }
+      name.addEventListener('keydown', (e) => { if (e.key === 'Enter') keep(name.value); });
+      const ok = el('button', 'pc-btn', 'Guardar'); ok.type = 'button'; ok.onclick = () => keep(name.value);
+      foot.append(name, ok);
     }
+    box.append(foot);
+    return box;
   }
 
-  function openEdit(force) {
-    const panel = $('mmEdit'); panel.hidden = force ? false : !panel.hidden;
-    if (!panel.hidden) renderEdit();
-  }
-  function renderEdit() {
-    const list = $('mmPlaces'); list.replaceChildren();
-    for (const p of cfg.places) {
-      const li = el('li'); li.append(el('b', null, p.label), el('span', null, p.name));
-      const x = el('button', 'mm-x', 'Quitar'); x.type = 'button'; x.onclick = () => { cfg.places = cfg.places.filter((q) => q.id !== p.id); save(); renderEdit(); renderBlocks(); };
-      li.append(x); list.append(li);
-    }
-    const chips = $('mmLines'); chips.replaceChildren();
-    const lines = [...(state.graph?.lines.values() ?? [])].sort((a, b) => a.m.localeCompare(b.m) || a.b.localeCompare(b.b, 'es', { numeric: true }));
-    for (const l of lines) {
-      const on = cfg.lines.includes(l.i);
-      const c = el('button', 'mm-chip', l.b); c.type = 'button'; c.setAttribute('aria-pressed', on);
-      c.style.setProperty('--lc', l.color); c.title = l.n || l.b;
-      c.onclick = () => { cfg.lines = on ? cfg.lines.filter((x) => x !== l.i) : [...cfg.lines, l.i]; save(); renderEdit(); renderBlocks(); };
-      chips.append(c);
-    }
-    $('mmBuses').value = cfg.buses;
-  }
-  function addPlace(label, hit) {
-    cfg.places.push({ id: Date.now().toString(36), label: label || 'Sitio', name: hit.name, lat: hit.lat, lon: hit.lon });
-    save(); $('mmQuery').value = ''; $('mmHits').replaceChildren(); renderEdit(); renderBlocks();
-  }
-
-  function start() {
-    $('mmEditBtn').onclick = () => openEdit();
-    $('mmQuery').addEventListener('input', () => {
-      const hits = $('mmHits'); hits.replaceChildren();
-      for (const h of search($('mmQuery').value)) {
-        const b = el('button', 'mm-hit'); b.type = 'button'; b.append(el('span', null, h.name), el('small', null, h.kind));
-        b.onclick = () => addPlace($('mmLabel').value.trim(), h); hits.append(b);
-      }
-    });
-    $('mmGeo').onclick = () => navigator.geolocation?.getCurrentPosition(
-      (pos) => addPlace($('mmLabel').value.trim() || 'Aquí', { name: 'Mi ubicación', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => { $('mmGeo').textContent = 'No se pudo leer tu ubicación'; }, { enableHighAccuracy: true, timeout: 10000 });
-    $('mmBuses').addEventListener('change', () => { cfg.buses = $('mmBuses').value; save(); fillBuses(); });
-    on('graph', () => { buildIndex(); renderBlocks(); });
-    on('bikes', () => { if (!index) buildIndex(); if (!$('mimadrid').hidden) renderBlocks(); });
-    on('status', () => { if (!$('mimadrid').hidden) renderBlocks(); });
-    on('trains', () => { if (!$('mimadrid').hidden && cfg.lines.some((x) => x.startsWith('cercanias'))) renderBlocks(); });
-    busTimer = setInterval(() => { if (!$('mimadrid').hidden && !document.hidden) fillBuses(); }, 45000);
-  }
-  return { start, shown: () => renderBlocks(), places: () => cfg.places, nearestBike, buses };
+  function start() { on('graph', buildIndex); on('bikes', buildIndex); }
+  return { start, attachSearch, card, places: () => cfg.places, nearestBike, buses, onPlaces: (f) => listeners.push(f) };
 })();

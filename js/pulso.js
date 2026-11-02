@@ -433,5 +433,5 @@ window.Pulso = (() => {
     on('health', when);
     applyNight(); setInterval(() => { when(); applyNight(); }, 30000);
   }
-  return { start, enterScreen, exitScreen, shown: () => { size(); kick(); } };
+  return { start, enterScreen, exitScreen, events: () => events, trains: () => trains, nightness, shown: () => { size(); kick(); } };
 })();
