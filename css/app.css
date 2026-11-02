@@ -291,3 +291,7 @@ body.screen-map .bus { font-size: 13px; padding: 2px 7px; }
 body.screen-map.night .dark-tiles { filter: invert(1) hue-rotate(180deg) grayscale(.95) brightness(.36) contrast(1.1); }
 body.screen-map.night #map .leaflet-pane { transition: opacity 2s; }
 body.screen-map.night .leaflet-overlay-pane, body.screen-map.night .leaflet-marker-pane { opacity: .55; }
+
+/* ?pantalla: kiosk for the macOS screen saver and big screens */
+body.kiosk #dirExit { display: none !important; }
+body.kiosk, body.kiosk * { cursor: none !important; }

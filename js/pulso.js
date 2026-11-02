@@ -298,6 +298,8 @@ window.Pulso = (() => {
 
   // Night: between Metro closing and opening the city dims, the director slows down and waits for the first train.
   const forceNight = new URLSearchParams(location.search).has('noche');
+  // ?pantalla: start straight in Modo pantalla with no exit button (the macOS screen saver loads this)
+  const kiosk = new URLSearchParams(location.search).has('pantalla');
   function madridHour() { const p = new Intl.DateTimeFormat('es', { hour: 'numeric', minute: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Madrid' }).formatToParts(new Date()); const g = (t) => +p.find((x) => x.type === t).value; return g('hour') + g('minute') / 60; }
   function nightness() {
     if (forceNight) return 1;
@@ -407,13 +409,14 @@ window.Pulso = (() => {
     capEl().classList.remove('in'); home(1200); setTimeout(size, 300);
   }
   document.addEventListener('visibilitychange', () => { if (D.on && !document.hidden) lockScreen(); });
-  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && D.on) exitScreen(); });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') exitScreen(); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && D.on && !kiosk) exitScreen(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !kiosk) exitScreen(); });
   addEventListener('pointermove', () => { if (!D.on) return; document.body.classList.remove('still-mouse'); clearTimeout(D.idle); D.idle = setTimeout(() => document.body.classList.add('still-mouse'), 2500); });
 
   function start() {
     document.querySelectorAll('[data-screen]').forEach((b) => b.addEventListener('click', enterScreen));
     document.getElementById('dirExit').addEventListener('click', exitScreen);
+    if (kiosk) { document.body.classList.add('kiosk'); setTimeout(enterScreen, 1200); }
     new ResizeObserver(() => { size(); kick(); }).observe(cv);
     const zoom = zoomB = d3.zoom().scaleExtent([1, 8]).on('zoom', (e) => { view = e.transform; pointer = null; kick(); })
       .on('end', () => { bake(); kick(); });
