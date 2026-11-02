@@ -28,7 +28,8 @@ window.Extras = (() => {
     const d = await r.json(), now = performance.now();
     // Moored ships report every few minutes, so keep every ship heard in the last 30 minutes.
     const all = new Map(X.ships.filter((s) => Date.now() - (s.at ?? 0) < 1800000).map((s) => [s.id, s]));
-    for (const s of d.ships ?? []) all.set(s.id, { ...all.get(s.id), ...s, name: s.name || all.get(s.id)?.name || '', t0: now });
+    const clean = (n) => String(n || '').replace(/[^A-Za-z0-9 .'&()-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const s0 of d.ships ?? []) { const s = { ...s0, name: clean(s0.name), to: clean(s0.to) }; all.set(s.id, { ...all.get(s.id), ...s, name: s.name || all.get(s.id)?.name || '', t0: now }); }
     X.ships = [...all.values()];
     changed('ships');
   }
