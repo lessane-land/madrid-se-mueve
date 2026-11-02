@@ -28,6 +28,9 @@ No Historia and no 30-day episodes for the Bay.
 `js/data.js` owns every fetch and poll (trains 15 s, bikes 30 s, status 2 min, episodes 10 min, paused while the tab is hidden);
 views subscribe with `MSM.on(name, fn)`. `historia.html` only redirects to `#historia`.
 
+Scripts and styles load with `?v=<version>` in `index.html` (GitHub Pages caches for 10 minutes): bump it on every
+change to `js/` or `css/`, then rerun `scripts/bay_index.py` and push the Bay page too.
+
 ## Where the data comes from
 
 | Layer | Source | How it reaches the page |
