@@ -144,6 +144,23 @@ h2 { font-family: var(--shout); font-weight: 700; font-size: 15px; margin: 0; le
 .map-panel .st { display: grid; grid-template-columns: auto 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.35; }
 .map-panel .st:first-of-type { border-top: 0; }
 .map-panel .hint { font-size: 12px; color: var(--mute); margin-top: 8px; }
+.panel-head { all: unset; display: flex; align-items: center; gap: 10px; width: 100%; font: inherit; }
+.panel-head .n { font-family: var(--count); font-size: 13px; color: var(--mute); }
+.panel-head .chev { display: none; margin-left: auto; color: var(--mute); transition: transform .25s; }
+/* Phones: the toggles ride one scrolling row, and the panel starts as a one-line bar you tap to open. */
+@media (max-width: 720px) {
+  .map-layers { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+  .map-layers::-webkit-scrollbar { display: none; }
+  .map-layers .toggle { flex: none; }
+  .map-panel { padding: 10px 14px; }
+  .map-panel h2 { margin: 0; }
+  .panel-head { cursor: pointer; }
+  .panel-head .chev { display: block; }
+  .map-panel:not(.open) > :not(h2) { display: none; }
+  .map-panel.open { max-height: 52vh; }
+  .map-panel.open .panel-head .chev { transform: rotate(180deg); }
+  .leaflet-control-zoom { display: none; }
+}
 .tr { width: 14px; height: 14px; border-radius: 50%; border: 2.5px solid var(--ink); box-shadow: 0 0 0 1.5px var(--paper); }
 .bus { font-family: var(--count); font-weight: 700; font-size: 11px; color: var(--ink); background: var(--hielo); border-radius: 6px; padding: 1px 5px; border: 1.5px solid var(--ink); white-space: nowrap; transform: translate(-50%, -50%); display: inline-block; }
 
@@ -183,7 +200,7 @@ td.m { font-family: var(--count); font-size: 12px; white-space: nowrap; }
 .screen-btn { cursor: pointer; color: var(--paper); gap: 7px; align-items: center; }
 .screen-btn svg { color: var(--hielo); }
 .director { display: none; }
-body.screen .bar, body.screen .pulso-text, body.screen .pulso-side, body.screen .pulso-legend, body.screen .pulso-veil, body.screen .pulso-tip { display: none !important; }
+body.screen .bar, body.screen .pulso-text, body.screen .pulso-side, body.screen .pulso-search, body.screen .pulso-legend, body.screen .pulso-veil, body.screen .pulso-tip { display: none !important; }
 body.screen .director { display: block; position: absolute; inset: 0; pointer-events: none; z-index: 10; }
 body.screen #pulsoCanvas { cursor: default; }
 body.screen.still-mouse, body.screen.still-mouse #pulsoCanvas { cursor: none; }

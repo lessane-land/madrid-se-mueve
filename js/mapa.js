@@ -28,6 +28,7 @@ window.Mapa = (() => {
     alerts.clearLayers();
     const list = $('mStatus'); list.replaceChildren();
     const items = state.status.items;
+    $('mPanelN').textContent = items.length ? fmt.format(items.length) : '';
     for (const it of items) {
       if (!it.pts) continue;
       L.polyline(it.pts, { pane: 'alerts', color: it.color, weight: 13, opacity: .45, lineCap: 'round' }).addTo(alerts);
@@ -290,6 +291,7 @@ window.Mapa = (() => {
   function start() {
     map = L.map('map', { preferCanvas: true, zoomControl: false, minZoom: 8, maxZoom: 19 }).setView(CITY.center, CITY.zoom);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
+    $('mPanelHead').addEventListener('click', () => { const p = $('mPanelHead').closest('.map-panel'), open = p.classList.toggle('open'); $('mPanelHead').setAttribute('aria-expanded', open); });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, className: 'dark-tiles', attribution: `&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · ${T('Datos', 'Data')}: ${CITY.sources}` }).addTo(map);
     map.createPane('lines').style.zIndex = 410; map.createPane('alerts').style.zIndex = 420; map.createPane('bikes').style.zIndex = 430; map.createPane('vehicles').style.zIndex = 650;
     // One canvas for lines, alerts and bikes. A canvas per pane stacked them, and the top one (bikes) swallowed the

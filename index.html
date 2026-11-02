@@ -22,8 +22,8 @@
 <meta property="og:locale" content="es_ES">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/app.css?v=20261102y">
-<script src="js/city.js?v=20261102y"></script>
+<link rel="stylesheet" href="css/app.css?v=20261102z">
+<script src="js/city.js?v=20261102z"></script>
 </head>
 <body>
 <header class="bar">
@@ -105,7 +105,7 @@
       <button class="dir-exit" id="mapExit" type="button" data-en="Leave screen mode">Salir del modo pantalla</button>
     </div>
     <div class="map-panel">
-      <h2 data-en="Right now">Ahora mismo</h2>
+      <h2><button type="button" class="panel-head" id="mPanelHead" aria-expanded="false" aria-controls="mStatus"><span data-en="Right now">Ahora mismo</span><span class="n" id="mPanelN"></span><svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button></h2>
       <div id="mStatus"></div>
       <div class="hint" id="mHint" data-es="{busHint}" data-en="{busHint}">Acércate a una calle para ver los buses que llegan a sus paradas.</div>
     </div>
@@ -175,13 +175,13 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="js/data.js?v=20261102y"></script>
-<script src="js/extras.js?v=20261102y"></script>
-<script src="js/pulso.js?v=20261102y"></script>
-<script src="js/lineas.js?v=20261102y"></script>
-<script src="js/mimadrid.js?v=20261102y"></script>
-<script src="js/mapa.js?v=20261102y"></script>
-<script src="js/historia.js?v=20261102y"></script>
+<script src="js/data.js?v=20261102z"></script>
+<script src="js/extras.js?v=20261102z"></script>
+<script src="js/pulso.js?v=20261102z"></script>
+<script src="js/lineas.js?v=20261102z"></script>
+<script src="js/mimadrid.js?v=20261102z"></script>
+<script src="js/mapa.js?v=20261102z"></script>
+<script src="js/historia.js?v=20261102z"></script>
 <script>
 // Router: one view at a time, on the hash. Views start lazily the first time they are shown.
 (() => {
