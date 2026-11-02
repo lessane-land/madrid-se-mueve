@@ -101,6 +101,12 @@ window.Extras = (() => {
     for (const [f, ms] of plan) { safe(f)(); setInterval(safe(f), ms); }
   }
 
+  // Top-down silhouettes, nose and bow up, in a 24 x 24 box around 0,0.
+  const PLANE = 'M0 -11 C1.1 -11 1.6 -9.6 1.6 -8 L1.6 -3.2 L10.5 2 L10.5 4.2 L1.6 1.6 L1.3 7 L4.6 9.4 L4.6 11 L0 9.8 L-4.6 11 L-4.6 9.4 L-1.3 7 L-1.6 1.6 L-10.5 4.2 L-10.5 2 L-1.6 -3.2 L-1.6 -8 C-1.6 -9.6 -1.1 -11 0 -11 Z';
+  const HULL = 'M0 -11 C2.6 -8 3.8 -4.5 3.8 0 L3.8 8.2 Q3.8 10.5 1.6 10.5 L-1.6 10.5 Q-3.8 10.5 -3.8 8.2 L-3.8 0 C-3.8 -4.5 -2.6 -8 0 -11 Z';
+  const BRIDGE = 'M-2.2 3.5 H2.2 V7 H-2.2 Z';
+  const planePath = new Path2D(PLANE), hullPath = new Path2D(HULL), bridgePath = new Path2D(BRIDGE);
+
   // ---- Moving things between reports ----
   const NM = 1.852 / 3600000;   // knots to km per ms
   function advance(o, now, speedKnots, heading, capMs) {
@@ -144,9 +150,9 @@ window.Extras = (() => {
     ctx.globalAlpha = 1;
     for (const s of X.ships) {
       const [la, lo] = shipAt(s, now), [x, y] = P(la, lo), r = (s.cog || 0) * Math.PI / 180;
-      ctx.save(); ctx.translate(x, y); ctx.rotate(r);
-      ctx.fillStyle = C.hielo; ctx.globalAlpha = s.sog > .5 ? .85 : .45;
-      ctx.beginPath(); ctx.moveTo(0, -4 * z); ctx.lineTo(2.2 * z, 3 * z); ctx.lineTo(-2.2 * z, 3 * z); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(r); ctx.scale(.5 * z, .5 * z);
+      ctx.fillStyle = C.hielo; ctx.globalAlpha = s.sog > .5 ? .9 : .5; ctx.fill(hullPath);
+      ctx.fillStyle = C.ink; ctx.globalAlpha = .55; ctx.fill(bridgePath);
       ctx.restore();
     }
     for (const p of X.planes) {
@@ -155,8 +161,8 @@ window.Extras = (() => {
       const low = p.alt < 6000, a = low ? .75 : .38;
       ctx.strokeStyle = C.paper; ctx.globalAlpha = a * .35; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.sin(r) * 18 * z, y + Math.cos(r) * 18 * z); ctx.stroke();
-      ctx.save(); ctx.translate(x, y); ctx.rotate(r); ctx.fillStyle = C.paper; ctx.globalAlpha = a;
-      ctx.beginPath(); ctx.moveTo(0, -3.5 * z); ctx.lineTo(2.6 * z, 2.5 * z); ctx.lineTo(0, 1.2 * z); ctx.lineTo(-2.6 * z, 2.5 * z); ctx.closePath(); ctx.fill();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(r); const k = (low ? .62 : .5) * z; ctx.scale(k, k);
+      ctx.fillStyle = C.paper; ctx.globalAlpha = a; ctx.fill(planePath);
       ctx.restore();
     }
     ctx.globalAlpha = 1;
@@ -167,8 +173,8 @@ window.Extras = (() => {
   function airWord(v) { return v <= 40 ? L('bueno', 'good') : v <= 90 ? L('razonablemente bueno', 'fair') : v <= 120 ? L('regular', 'moderate') : L('malo', 'poor'); }
   function attachMap(map, addToggle, tip) {
     const groups = {}, marks = { planes: new Map(), ships: new Map() };
-    const svgPlane = (deg, low) => `<svg width="18" height="18" viewBox="-9 -9 18 18" style="transform: rotate(${deg}deg); opacity: ${low ? .95 : .6}"><path d="M0 -8 L5 5 L0 2.5 L-5 5 Z" fill="${C.paper}" stroke="${C.ink}" stroke-width="1"/></svg>`;
-    const svgShip = (deg) => `<svg width="14" height="14" viewBox="-7 -7 14 14" style="transform: rotate(${deg}deg)"><path d="M0 -6 L4 5 L-4 5 Z" fill="${C.hielo}" stroke="${C.ink}" stroke-width="1"/></svg>`;
+    const svgPlane = (deg, low) => `<svg width="22" height="22" viewBox="-12 -12 24 24" style="transform: rotate(${deg}deg); opacity: ${low ? .95 : .65}"><path d="${PLANE}" fill="${C.paper}" stroke="${C.ink}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+    const svgShip = (deg) => `<svg width="18" height="18" viewBox="-12 -12 24 24" style="transform: rotate(${deg}deg)"><path d="${HULL}" fill="${C.hielo}" stroke="${C.ink}" stroke-width="1.2"/><path d="${BRIDGE}" fill="${C.ink}" opacity=".55"/></svg>`;
     const add = (key, label, color, on) => { groups[key] = L_.layerGroup(); if (on) groups[key].addTo(map); addToggle(key, label, color, on, groups[key]); };
     const L_ = window.L;
     add('planes', L('Aviones', 'Planes'), C.paper, true);
@@ -178,7 +184,7 @@ window.Extras = (() => {
       const seen = new Set();
       for (const o of list) {
         seen.add(o.id); let m = marks[kind].get(o.id);
-        const ic = L_.divIcon({ className: '', html: icon(o), iconSize: [18, 18], iconAnchor: [9, 9] });
+        const ic = L_.divIcon({ className: '', html: icon(o), iconSize: [22, 22], iconAnchor: [11, 11] });
         if (!m) { m = L_.marker(pos(o), { pane: 'vehicles', icon: ic, interactive: true }).bindTooltip(tip(...label(o))).addTo(groups[kind]); marks[kind].set(o.id, m); }
         else { m.setIcon(ic); m.setTooltipContent(tip(...label(o))); m.setLatLng(pos(o)); }
       }
