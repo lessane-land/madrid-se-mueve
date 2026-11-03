@@ -8,6 +8,7 @@ reaches the Bay too. Run this again only when index.html changes.
 
 Usage: python3 scripts/bay_index.py path/to/bay-area-se-mueve
 """
+import json
 import os
 import re
 import sys
@@ -44,15 +45,27 @@ def main() -> int:
         if not n:
             print(f"missing meta {key}", file=sys.stderr)
             return 1
+    # Its own install manifest, so Add to Home Screen opens the Bay, not Madrid.
+    s = s.replace(f'<link rel="manifest" href="{BASE}manifest.webmanifest">', '<link rel="manifest" href="manifest.webmanifest">', 1)
+    s = s.replace('<meta name="apple-mobile-web-app-title" content="Madrid se mueve">', f'<meta name="apple-mobile-web-app-title" content="{TITLE}">', 1)
     s = s.replace('<a class="brand" href="#pulso" data-es="{title}">Madrid se mueve</a>',
                   '<a class="brand" href="#pulso" data-es="{title}">Bay Area se mueve</a>', 1)
 
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "index.html"), "w", encoding="utf-8") as f:
         f.write(s)
+    manifest = {
+        "name": TITLE, "short_name": "Bay se mueve", "description": DESC_EN, "start_url": "./#pulso",
+        "display": "standalone", "display_override": ["fullscreen", "standalone"],
+        "background_color": "#0A0A0A", "theme_color": "#0A0A0A", "lang": "en",
+        "icons": [{"src": BASE + "icon-192.png", "sizes": "192x192", "type": "image/png"},
+                  {"src": BASE + "icon-512.png", "sizes": "512x512", "type": "image/png"}],
+    }
+    with open(os.path.join(out_dir, "manifest.webmanifest"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2); f.write("\n")
     with open(os.path.join(out_dir, "CNAME"), "w") as f:
         f.write("bayarea.lessane.es\n")
-    print(f"{out_dir}/index.html and CNAME written")
+    print(f"{out_dir}/index.html, manifest.webmanifest and CNAME written")
     return 0
 
 

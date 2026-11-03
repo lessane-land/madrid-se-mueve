@@ -277,6 +277,7 @@ window.Mapa = (() => {
   function enterScreen() {
     if (D.on) return; D.on = true;
     if (location.hash.slice(1).split('-')[0] !== 'mapa') location.hash = '#mapa';
+    MSM.fullHint?.();
     document.body.classList.add('screen-map');
     document.documentElement.requestFullscreen?.().catch(() => {});
     lock(); $('placeCard').hidden = true;

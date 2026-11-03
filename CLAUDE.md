@@ -12,6 +12,8 @@ One page, four views on the hash, served by GitHub Pages from `main`, root folde
 | Líneas | `#lineas` | Departure board: every rail line on split flaps, trains running, 30 days of trouble | `js/lineas.js` |
 | Historia | `#historia`, linked from Líneas, not in the nav | BiciMAD since 2024 against rain, free days, strikes and the blackout | `js/historia.js`, d3 |
 
+Installable: Add to Home Screen opens it with no browser bars (iPhone Safari cannot go full screen otherwise; Modo pantalla says so once per visit).
+
 Saved places live only in the visitor's browser, localStorage key `msm.mimadrid.v1` (places, lines, bus lines). No server, no account.
 
 `saver/` is a macOS screen saver (Xcode) that loads `/?pantalla#pulso`: Pulso in Modo pantalla with no exit button and no cursor.
@@ -20,7 +22,7 @@ Saved places live only in the visitor's browser, localStorage key `msm.mimadrid.
 `<meta name="msm-city" content="bay">` is the SF Bay Area; anything else is Madrid) and the language (`?lang=es|en`,
 remembered, else the browser's). Every user-facing string is written as `L('es', 'en')` in the views, and as
 `data-es` / `data-en` (with `{city}`, `{bike}`, `{title}` tokens) in `index.html`. The Bay edition lives at
-bayarea.lessane.es: repo lessane-land/bay-area-se-mueve holds only the page that `scripts/bay_index.py` writes, and loads every
+bayarea.lessane.es: repo lessane-land/bay-area-se-mueve holds only the page and its own `manifest.webmanifest` (so Add to Home Screen opens the Bay) that `scripts/bay_index.py` writes, and loads every
 script, style and font from madrid.lessane.es. Bay data: `graph-bay.json` (estado-madrid, monthly from 511),
 Edge Function `vivo?city=bay&what=vehicles|alerts|roads` (511: vehicles and BART trip updates every 3 min, alerts 10 min, roads and tolls 30 min; BART placed in `data.js` from its arrival times), Bay Wheels GBFS (stations, free e-bikes, alerts) from the browser, coast from `data/coast-bay.json` (US Census shoreline).
 No Historia and no 30-day episodes for the Bay.

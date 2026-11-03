@@ -511,9 +511,21 @@ window.Pulso = (() => {
     nextScene()();
     D.timer = setTimeout(stepDirector, night > .5 ? 30000 : still ? 14000 : 11000);
   }
+  // iPhone Safari has no full screen for pages: say once how to get it (Add to Home Screen opens it with no bars).
+  function fullHint() {
+    const app = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
+    if (document.fullscreenEnabled || app || sessionStorage.getItem('msm.fsHint')) return;
+    try { sessionStorage.setItem('msm.fsHint', '1'); } catch {}
+    const el = document.createElement('div'); el.className = 'fs-hint'; el.setAttribute('role', 'status');
+    el.textContent = L('Para verlo a pantalla completa en el iPhone: Compartir, Añadir a pantalla de inicio, y ábrelo desde ahí.', 'For full screen on iPhone: Share, Add to Home Screen, then open it from there.');
+    document.body.append(el); requestAnimationFrame(() => el.classList.add('in'));
+    setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 600); }, 7000);
+  }
+  window.MSM.fullHint = fullHint;
   async function lockScreen() { try { D.lock = await navigator.wakeLock?.request('screen'); } catch {} }
   function enterScreen() {
     if (D.on) return; D.on = true;
+    fullHint();
     document.body.classList.add('screen');
     document.documentElement.requestFullscreen?.().catch(() => {});
     lockScreen(); pointer = null;

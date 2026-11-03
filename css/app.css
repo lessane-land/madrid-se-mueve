@@ -350,3 +350,7 @@ body.screen .coffee, body.screen-map .coffee, body.kiosk .coffee { display: none
 .map-panel .st.go:hover span:last-child { color: var(--paper); }
 .quake-list .ql { width: 100%; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding-left: 0; padding-right: 0; }
 .quake-list .ql:hover span:last-child { color: var(--paper); }
+
+/* iPhone Safari cannot go full screen: a one-time hint in Modo pantalla. */
+.fs-hint { position: fixed; z-index: 3000; left: 50%; top: calc(var(--top) + 64px); transform: translate(-50%, -10px); width: min(360px, calc(100% - 32px)); background: rgba(20,20,19,.96); border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.35; opacity: 0; transition: opacity .5s, transform .5s; pointer-events: none; }
+.fs-hint.in { opacity: 1; transform: translate(-50%, 0); }
